@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode and editor state
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+.idea/
+.vscode/
+
+# Local build output
+dist/
+*.dSYM/
+
+# Local environment files
+.env
+.env.*
+!.env.example
