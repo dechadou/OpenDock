@@ -1,6 +1,6 @@
-# LocalSidebar
+# OpenDock
 
-LocalSidebar is a local-only macOS sidebar and dock-style app built with
+OpenDock is a local-only macOS sidebar and dock-style app built with
 SwiftPM, SwiftUI, and small AppKit bridges.
 
 ## Requirements
@@ -15,7 +15,7 @@ SwiftPM, SwiftUI, and small AppKit bridges.
 ```
 
 The script builds the Swift package, stages the app bundle at
-`dist/LocalSidebar.app`, signs it, and launches it.
+`dist/OpenDock.app`, signs it, and launches it.
 
 To verify the staged app launches:
 
@@ -55,16 +55,16 @@ Create the certificate once:
 
 1. Open Keychain Access.
 2. Choose Certificate Assistant > Create a Certificate.
-3. Name it `LocalSidebar Dev`.
+3. Name it `OpenDock Dev`.
 4. Set Identity Type to Self-Signed Root.
 5. Set Certificate Type to Code Signing.
 6. Create the certificate in your login keychain.
 
-`./script/build_and_run.sh` uses `LocalSidebar Dev` by default. To use a
-different signing identity:
+`./script/build_and_run.sh` uses `OpenDock Dev` by default. To use a different
+signing identity:
 
 ```bash
-LOCALSIDEBAR_SIGN_IDENTITY="Your Code Signing Identity" ./script/build_and_run.sh
+OPENDOCK_SIGN_IDENTITY="Your Code Signing Identity" ./script/build_and_run.sh
 ```
 
 After the first signed build, grant Accessibility once in System Settings. The
@@ -85,7 +85,7 @@ bundle identifier stay the same.
 - One floating sidebar per display by default.
 - Auto-hide on mouse-edge proximity, with exact-edge reveal and configurable delay for bottom placement.
 - Settings for edge, bottom reveal delay, icon size, spacing, opacity, auto-hide, and displays.
-- Settings for opening at login and hiding the macOS Dock while LocalSidebar runs, with explicit Apply/Revert for layout changes.
+- Settings for opening at login and hiding the macOS Dock while OpenDock runs, with explicit Apply/Revert for layout changes.
 - Menu bar controls for pins, settings, refresh, and quit.
 - Drag/drop from Finder plus sidebar item reordering.
 - Stacks with popover contents, drag/drop from running apps/Finder/pins, and move-out support.
@@ -106,8 +106,8 @@ Window features work in a degraded mode without permissions. Enable:
 ## Project Layout
 
 - `Package.swift`: Swift package definition and executable targets.
-- `Sources/LocalSidebar`: shared app models, services, stores, views, and layout support.
-- `Sources/LocalSidebarApp`: app entry point.
-- `Sources/LocalSidebarDockRestorer`: helper executable used when restoring Dock visibility.
-- `Tests/LocalSidebarUnitTests`: standalone unit tests.
+- `Sources/OpenDock`: shared app models, services, stores, views, and layout support.
+- `Sources/OpenDockApp`: app entry point.
+- `Sources/OpenDockDockRestorer`: helper executable used when restoring Dock visibility.
+- `Tests/OpenDockUnitTests`: standalone unit tests.
 - `script`: local build, launch, and test helpers.

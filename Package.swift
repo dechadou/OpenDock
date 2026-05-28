@@ -2,34 +2,34 @@
 import PackageDescription
 
 let package = Package(
-    name: "LocalSidebar",
+    name: "OpenDock",
     platforms: [
         .macOS("26.5")
     ],
     products: [
-        .executable(name: "LocalSidebar", targets: ["LocalSidebar"]),
-        .executable(name: "LocalSidebarDockRestorer", targets: ["LocalSidebarDockRestorer"]),
-        .executable(name: "LocalSidebarUnitTests", targets: ["LocalSidebarUnitTests"]),
+        .executable(name: "OpenDock", targets: ["OpenDock"]),
+        .executable(name: "OpenDockDockRestorer", targets: ["OpenDockDockRestorer"]),
+        .executable(name: "OpenDockUnitTests", targets: ["OpenDockUnitTests"]),
     ],
     targets: [
         .target(
-            name: "LocalSidebarCore",
-            path: "Sources/LocalSidebar"
+            name: "OpenDockCore",
+            path: "Sources/OpenDock"
         ),
         .executableTarget(
-            name: "LocalSidebar",
-            dependencies: ["LocalSidebarCore"],
-            path: "Sources/LocalSidebarApp"
+            name: "OpenDock",
+            dependencies: ["OpenDockCore"],
+            path: "Sources/OpenDockApp"
         ),
         .executableTarget(
-            name: "LocalSidebarDockRestorer",
-            dependencies: ["LocalSidebarCore"],
-            path: "Sources/LocalSidebarDockRestorer"
+            name: "OpenDockDockRestorer",
+            dependencies: ["OpenDockCore"],
+            path: "Sources/OpenDockDockRestorer"
         ),
         .executableTarget(
-            name: "LocalSidebarUnitTests",
-            dependencies: ["LocalSidebarCore"],
-            path: "Tests/LocalSidebarUnitTests"
+            name: "OpenDockUnitTests",
+            dependencies: ["OpenDockCore"],
+            path: "Tests/OpenDockUnitTests"
         ),
     ],
     swiftLanguageModes: [.v6]
