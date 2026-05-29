@@ -1,14 +1,86 @@
 # OpenDock
 
-OpenDock is a local-only macOS sidebar and dock-style app built with
-SwiftPM, SwiftUI, and small AppKit bridges.
+OpenDock is a local-first macOS sidebar for launching apps, organizing shortcuts,
+switching windows, checking widgets, and keeping Dock-style controls close to the
+edge of your screen.
 
-## Requirements
+## For People Using the App
+
+### Download
+
+Download the latest beta from the
+[OpenDock releases page](https://github.com/dechadou/OpenDock/releases).
+
+Current beta:
+[v.0.0.1-beta](https://github.com/dechadou/OpenDock/releases/tag/v.0.0.1-beta)
+
+### Requirements
+
+- macOS 26.5 or newer.
+- The current beta download is built for Apple Silicon Macs.
+
+### Install
+
+1. Download `OpenDock-v.0.0.1-beta-macos.zip` from the release page.
+2. Unzip it.
+3. Move `OpenDock.app` to `/Applications`.
+4. Open the app.
+
+This beta is not notarized yet, so macOS may block the first launch. If that
+happens, open System Settings > Privacy & Security and allow OpenDock from
+there.
+
+### What OpenDock Does
+
+- Keeps a compact sidebar on the screen edge.
+- Shows running apps and lets you activate or switch between them.
+- Stores apps, files, folders, URLs, stacks, and widgets locally.
+- Supports drag and drop from Finder.
+- Includes folder peeks, stacks, Trash, date/time, and media controls.
+- Includes a launcher for apps in `/Applications`, `/System/Applications`, and
+  `~/Applications`.
+- Adds hover previews and a window switcher, with fallbacks when permissions are
+  missing.
+- Can mirror Dock-style app notification badges when macOS exposes them.
+- Can hide the macOS Dock while OpenDock runs, with explicit Apply/Revert
+  controls.
+
+### Permissions
+
+OpenDock works without extra permissions, but some features run in a degraded
+mode until permissions are enabled.
+
+- Accessibility: improves window activation and close actions, enables moving
+  windows between displays, and improves Dock badge mirroring.
+- Screen Recording: enables window thumbnails in hover previews and the window
+  switcher.
+
+You can manage these in System Settings > Privacy & Security.
+
+### Shortcuts
+
+- `Command-Option-S`: show or hide the sidebar.
+- `Command-Option-Space`: open the app launcher.
+- `Command-Option-W`: open the window switcher.
+
+## For Developers
+
+OpenDock is built with SwiftPM, SwiftUI, and small AppKit bridges. It is a local
+macOS app with no server dependency.
+
+### Requirements
 
 - macOS 26.5 or newer.
 - Swift 6.0 or newer from Xcode or the Command Line Tools.
 
-## Build and Run
+### Clone
+
+```bash
+git clone https://github.com/dechadou/OpenDock.git
+cd OpenDock
+```
+
+### Build and Run
 
 ```bash
 ./script/build_and_run.sh
@@ -31,7 +103,16 @@ Additional launch modes:
 ./script/build_and_run.sh --telemetry
 ```
 
-## Test
+### Build Without Launching
+
+Use this when preparing release artifacts or checking compilation only:
+
+```bash
+swift build
+swift build -c release
+```
+
+### Test
 
 The project uses a standalone Swift unit-test runner:
 
@@ -39,13 +120,7 @@ The project uses a standalone Swift unit-test runner:
 ./script/run_unit_tests.sh
 ```
 
-You can also run the package build directly:
-
-```bash
-swift build
-```
-
-## Development Signing
+### Development Signing
 
 Stable development signing lets macOS keep the Accessibility permission across
 rebuilds. Without it, ad-hoc signatures change on every rebuild and macOS treats
@@ -71,43 +146,13 @@ After the first signed build, grant Accessibility once in System Settings. The
 grant should persist across later rebuilds as long as the signing identity and
 bundle identifier stay the same.
 
-## Shortcuts
-
-- `Command-Option-S`: show/hide the sidebar.
-- `Command-Option-Space`: open the app launcher.
-- `Command-Option-W`: open the window switcher.
-
-## Current Scope
-
-- Running app list via `NSWorkspace`.
-- Apps, files, folders, URLs, stacks, and system widgets persisted locally.
-- App launcher for `/Applications`, `/System/Applications`, and `~/Applications`.
-- One floating sidebar per display by default.
-- Auto-hide on mouse-edge proximity, with exact-edge reveal and configurable delay for bottom placement.
-- Settings for edge, bottom reveal delay, icon size, spacing, opacity, auto-hide, and displays.
-- Settings for opening at login and hiding the macOS Dock while OpenDock runs, with explicit Apply/Revert for layout changes.
-- Menu bar controls for pins, settings, refresh, and quit.
-- Drag/drop from Finder plus sidebar item reordering.
-- Stacks with popover contents, drag/drop from running apps/Finder/pins, and move-out support.
-- Folder peek for folder items.
-- Second-click behavior for active apps.
-- Window switcher and hover previews, with title-only fallback when permissions are missing.
-- AppKit-backed context-menu `Move To` actions for moving app windows between active displays.
-- Dock-like app notification badges when Accessibility exposes them.
-- Trash, date/time, and media-control widgets.
-
-## Permissions
-
-Window features work in a degraded mode without permissions. Enable:
-
-- Accessibility: improves window activation and close actions, is required for moving windows between displays, and enables best-effort Dock badge mirroring.
-- Screen Recording: enables window thumbnails in previews and the switcher.
-
-## Project Layout
+### Project Layout
 
 - `Package.swift`: Swift package definition and executable targets.
-- `Sources/OpenDock`: shared app models, services, stores, views, and layout support.
+- `Sources/OpenDock`: shared app models, services, stores, views, and layout
+  support.
 - `Sources/OpenDockApp`: app entry point.
-- `Sources/OpenDockDockRestorer`: helper executable used when restoring Dock visibility.
+- `Sources/OpenDockDockRestorer`: helper executable used when restoring Dock
+  visibility.
 - `Tests/OpenDockUnitTests`: standalone unit tests.
 - `script`: local build, launch, and test helpers.
