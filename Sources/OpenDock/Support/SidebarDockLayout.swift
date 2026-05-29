@@ -3,19 +3,29 @@ import Foundation
 
 public enum SidebarDockLayout {
     public struct Sections: Equatable, Sendable {
-        public var stacks: [SidebarItem]
-        public var pinnedItems: [SidebarItem]
+        public var userItems: [SidebarItem]
         public var finalWidgets: [SidebarItem]
 
+        public var stacks: [SidebarItem] {
+            userItems.filter { $0.kind == .stack }
+        }
+
+        public var pinnedItems: [SidebarItem] {
+            userItems.filter(Self.isPinnedItem)
+        }
+
         public var hasUserItems: Bool {
-            !stacks.isEmpty || !pinnedItems.isEmpty
+            !userItems.isEmpty
+        }
+
+        private static func isPinnedItem(_ item: SidebarItem) -> Bool {
+            SidebarDockLayout.isPinnedItem(item)
         }
     }
 
     public static func sections(from items: [SidebarItem], registry: WidgetRegistry = .shared) -> Sections {
         Sections(
-            stacks: items.filter { $0.kind == .stack },
-            pinnedItems: items.filter(isPinnedItem),
+            userItems: items.filter(isUserItem),
             finalWidgets: finalWidgets(from: items, registry: registry)
         )
     }
@@ -75,7 +85,16 @@ public enum SidebarDockLayout {
         switch item.kind {
         case .application, .file, .folder, .url:
             return true
-        case .stack, .system:
+        case .stack, .space, .system:
+            return false
+        }
+    }
+
+    public static func isUserItem(_ item: SidebarItem) -> Bool {
+        switch item.kind {
+        case .application, .file, .folder, .url, .stack, .space:
+            return true
+        case .system:
             return false
         }
     }

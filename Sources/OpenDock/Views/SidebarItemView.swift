@@ -101,7 +101,9 @@ struct SidebarItemView: View {
 
     @ViewBuilder
     private var interactiveContent: some View {
-        if let widgetDefinition {
+        if item.kind == .space {
+            SpaceSidebarItemView(iconSize: iconSize, edge: edge)
+        } else if let widgetDefinition {
             if widgetDefinition.usesCustomDockInteraction {
                 widgetDefinition.makeDockView(context: widgetContext)
             } else {
@@ -126,6 +128,8 @@ struct SidebarItemView: View {
     private var itemLabel: some View {
         if item.kind == .stack {
             StackSidebarIcon(stack: item, iconSize: iconSize)
+        } else if item.kind == .space {
+            SpaceSidebarItemView(iconSize: iconSize, edge: edge)
         } else {
             SidebarIconButtonLabel(
                 icon: AppActionService.icon(for: item),
@@ -141,25 +145,37 @@ struct SidebarItemView: View {
     private var contextMenu: some View {
         switch item.kind {
         case .stack:
-            Button("Open Stack") {
+            Button {
                 setStackPresented(true)
+            } label: {
+                Label("Open Stack", systemImage: "square.stack.3d.up")
             }
+            userItemSpaceActions
             Divider()
-            Button("Remove Stack") {
+            Button {
                 appModel.removeSidebarItem(item)
+            } label: {
+                Label("Remove Stack", systemImage: "trash")
             }
         case .folder:
-            Button("Peek Folder") {
+            Button {
                 setFolderPresented(true)
+            } label: {
+                Label("Peek Folder", systemImage: "folder")
             }
             if let url = item.url {
-                Button("Open in Finder") {
+                Button {
                     NSWorkspace.shared.open(url)
+                } label: {
+                    Label("Open in Finder", systemImage: "finder")
                 }
             }
+            userItemSpaceActions
             Divider()
-            Button("Remove Pin") {
+            Button {
                 appModel.removeSidebarItem(item)
+            } label: {
+                Label("Remove Pin", systemImage: "pin.slash")
             }
         case .system:
             if let widgetDefinition {
@@ -167,14 +183,51 @@ struct SidebarItemView: View {
             } else {
                 EmptyView()
             }
-        default:
-            Button("Open") {
-                appModel.handleSidebarItemClick(item)
+        case .space:
+            Button {
+                appModel.addSpace(before: item.id)
+            } label: {
+                Label("Add Space Before", systemImage: "arrow.left.to.line")
+            }
+            Button {
+                appModel.addSpace(after: item.id)
+            } label: {
+                Label("Add Space After", systemImage: "arrow.right.to.line")
             }
             Divider()
-            Button("Remove Pin") {
+            Button {
                 appModel.removeSidebarItem(item)
+            } label: {
+                Label("Remove Space", systemImage: "trash")
             }
+        default:
+            Button {
+                appModel.handleSidebarItemClick(item)
+            } label: {
+                Label("Open", systemImage: "arrow.up.forward.app")
+            }
+            userItemSpaceActions
+            Divider()
+            Button {
+                appModel.removeSidebarItem(item)
+            } label: {
+                Label("Remove Pin", systemImage: "pin.slash")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var userItemSpaceActions: some View {
+        Divider()
+        Button {
+            appModel.addSpace(before: item.id)
+        } label: {
+            Label("Add Space Before", systemImage: "arrow.left.to.line")
+        }
+        Button {
+            appModel.addSpace(after: item.id)
+        } label: {
+            Label("Add Space After", systemImage: "arrow.right.to.line")
         }
     }
 
@@ -446,6 +499,39 @@ private struct StackSidebarIcon: View {
         }
         .frame(width: iconSize + 12, height: iconSize + 12)
         .contentShape(Rectangle())
+    }
+}
+
+private struct SpaceSidebarItemView: View {
+    var iconSize: CGFloat
+    var edge: SidebarEdge
+    @State private var isHovered = false
+    @Environment(\.sidebarAppearance) private var appearance
+
+    var body: some View {
+        ZStack {
+            if isHovered {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(appearance.widgetBackground.color.opacity(0.55))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(appearance.widgetBorder.color, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    )
+            }
+
+            Capsule()
+                .fill(appearance.separator.color.opacity(isHovered ? 0.8 : 0.42))
+                .frame(
+                    width: edge.isVertical ? max(18, iconSize * 0.46) : 1.5,
+                    height: edge.isVertical ? 1.5 : max(18, iconSize * 0.46)
+                )
+        }
+        .frame(width: iconSize + 12, height: iconSize + 12)
+        .contentShape(Rectangle())
+        .help("Space")
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 

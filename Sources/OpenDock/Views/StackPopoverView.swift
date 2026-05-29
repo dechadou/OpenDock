@@ -119,18 +119,24 @@ struct StackPopoverView: View {
 
     @ViewBuilder
     private func childContextMenu(_ child: SidebarItem) -> some View {
-        Button("Open") {
+        Button {
             appModel.handleSidebarItemClick(child)
+        } label: {
+            Label("Open", systemImage: "arrow.up.forward.app")
         }
 
-        Button("Move Out of Stack") {
+        Button {
             appModel.moveChildOutOfStack(childID: child.id, stackID: currentStack.id)
+        } label: {
+            Label("Move Out of Stack", systemImage: "arrow.up.left.square")
         }
 
         Divider()
 
-        Button("Remove") {
+        Button {
             appModel.removeSidebarItem(child)
+        } label: {
+            Label("Remove", systemImage: "trash")
         }
     }
 }

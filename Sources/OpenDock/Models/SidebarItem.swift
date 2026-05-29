@@ -7,6 +7,7 @@ public struct SidebarItem: Identifiable, Codable, Equatable, Hashable, Sendable 
         case folder
         case url
         case stack
+        case space
         case system
     }
 
@@ -108,6 +109,10 @@ public struct SidebarItem: Identifiable, Codable, Equatable, Hashable, Sendable 
             title: title,
             widgetID: widgetID
         )
+    }
+
+    public static func space() -> SidebarItem {
+        SidebarItem(kind: .space, title: "Space")
     }
 
     public static func system(_ systemKind: SystemKind) -> SidebarItem {

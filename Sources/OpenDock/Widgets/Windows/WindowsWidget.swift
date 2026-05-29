@@ -29,20 +29,26 @@ private struct WindowsWidgetContextMenu: View {
     @ObservedObject var appModel: AppModel
 
     var body: some View {
-        Button("Open Window Switcher") {
+        Button {
             appModel.openWindowSwitcher()
+        } label: {
+            Label("Open Window Switcher", systemImage: "rectangle.on.rectangle")
         }
 
         if !PermissionService.isAccessibilityTrusted {
-            Button("Enable Accessibility") {
+            Button {
                 PermissionService.requestAccessibilityPrompt()
                 PermissionService.openAccessibilitySettings()
+            } label: {
+                Label("Enable Accessibility", systemImage: "lock.shield")
             }
         }
 
         if !PermissionService.isScreenRecordingTrusted {
-            Button("Enable Screen Recording") {
+            Button {
                 PermissionService.openScreenRecordingSettings()
+            } label: {
+                Label("Enable Screen Recording", systemImage: "record.circle")
             }
         }
     }

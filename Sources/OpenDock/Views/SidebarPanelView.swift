@@ -72,8 +72,7 @@ struct SidebarPanelView: View {
     }
 
     private var standardLengthItemCount: Int {
-        layoutSections.stacks.count
-            + layoutSections.pinnedItems.count
+        layoutSections.userItems.count
             + appModel.visibleRunningApps.count
     }
 
@@ -108,8 +107,7 @@ struct SidebarPanelView: View {
 
     private var scrollableHorizontalContentLength: CGFloat {
         let itemCount =
-            layoutSections.stacks.count
-            + layoutSections.pinnedItems.count
+            layoutSections.userItems.count
             + appModel.visibleRunningApps.count
         let dividerCount = layoutSections.hasUserItems && !appModel.visibleRunningApps.isEmpty ? 1 : 0
 
@@ -140,8 +138,7 @@ struct SidebarPanelView: View {
     private var verticalContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: spacing) {
-                stackItems
-                pinnedItems
+                userItems
                 runningSeparatorIfNeeded
                 runningApps
                 finalControlsSeparatorIfNeeded
@@ -167,8 +164,7 @@ struct SidebarPanelView: View {
             if showsScrollableContent {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: spacing) {
-                        stackItems
-                        pinnedItems
+                        userItems
                         runningSeparatorIfNeeded
                         runningApps
                     }
@@ -220,7 +216,7 @@ struct SidebarPanelView: View {
             dockContextMenu
         }
         .onDrop(of: dropTypes, isTargeted: nil) { providers in
-            appModel.handlePinnedItemDrop(providers, before: nil)
+            appModel.handleUserItemDrop(providers, before: nil)
         }
         .environment(\.sidebarAppearance, preferences.appearance)
     }
@@ -228,30 +224,23 @@ struct SidebarPanelView: View {
     @ViewBuilder
     private var dockContextMenu: some View {
         if preferences.stacksEnabled {
-            Button("New Stack") {
+            Button {
                 appModel.createStack()
+            } label: {
+                Label("New Stack", systemImage: "square.stack.3d.up")
             }
+        }
+
+        Button {
+            appModel.appendSpace()
+        } label: {
+            Label("Add Space", systemImage: "rectangle.dashed")
         }
     }
 
     @ViewBuilder
-    private var stackItems: some View {
-        ForEach(layoutSections.stacks) { item in
-            SidebarItemView(
-                item: item,
-                appModel: appModel,
-                iconSize: iconSize,
-                edge: preferences.edge
-            )
-            .onDrag {
-                DragDropService.itemProvider(for: item)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var pinnedItems: some View {
-        ForEach(layoutSections.pinnedItems) { item in
+    private var userItems: some View {
+        ForEach(layoutSections.userItems) { item in
             SidebarItemView(
                 item: item,
                 appModel: appModel,
@@ -262,7 +251,7 @@ struct SidebarPanelView: View {
                 DragDropService.itemProvider(for: item)
             }
             .onDrop(of: dropTypes, isTargeted: nil) { providers in
-                appModel.handlePinnedItemDrop(providers, before: item.id)
+                appModel.handleUserItemDrop(providers, before: item.id)
             }
         }
     }

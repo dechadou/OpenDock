@@ -3,6 +3,13 @@ import Combine
 import Foundation
 import UniformTypeIdentifiers
 
+struct SettingsNavigationRequest: Equatable, Sendable {
+    var sequence: Int
+    var widgetID: WidgetID?
+
+    static let none = SettingsNavigationRequest(sequence: 0, widgetID: nil)
+}
+
 @MainActor
 public final class AppModel: ObservableObject {
     let preferencesStore: PreferencesStore
@@ -17,10 +24,15 @@ public final class AppModel: ObservableObject {
     @Published var isLauncherPresented = false
     @Published var isWindowSwitcherPresented = false
     @Published private(set) var mediaPlaybackInfo: MediaPlaybackInfo?
+    @Published private(set) var weatherInfo: WeatherInfo?
+    @Published private(set) var weatherErrorDescription: String?
+    @Published private(set) var volumeState: VolumeState = .unavailable
     @Published private(set) var isSidebarHeldByInteraction = false
+    @Published private(set) var settingsNavigationRequest: SettingsNavigationRequest = .none
 
     private let panelController = PanelController()
     private let hotKeyService = HotKeyService()
+    private let volumeService = VolumeService(backend: CoreAudioVolumeBackend())
     private weak var settingsWindow: NSWindow?
     private var cancellables: Set<AnyCancellable> = []
     private var sidebarInteractionSurfaceIDs: Set<String> = []
@@ -181,6 +193,13 @@ public final class AppModel: ObservableObject {
         settingsWindow.orderFrontRegardless()
     }
 
+    func requestWidgetSettings(_ widgetID: WidgetID) {
+        settingsNavigationRequest = SettingsNavigationRequest(
+            sequence: settingsNavigationRequest.sequence + 1,
+            widgetID: widgetID
+        )
+    }
+
     func revealSidebarForCustomizationPreview() {
         panelController.revealForCustomizationPreview()
     }
@@ -215,7 +234,7 @@ public final class AppModel: ObservableObject {
             AppActionService.openSidebarItem(item)
         case .folder:
             AppActionService.openSidebarItem(item)
-        case .stack:
+        case .stack, .space:
             break
         case .system:
             openSystemItem(item)
@@ -480,6 +499,21 @@ public final class AppModel: ObservableObject {
         refreshRunningAppsAndInvalidate()
     }
 
+    func appendSpace() {
+        sidebarItemStore.appendSpace()
+        refreshRunningAppsAndInvalidate()
+    }
+
+    func addSpace(before targetID: SidebarItem.ID?) {
+        sidebarItemStore.addSpace(before: targetID)
+        refreshRunningAppsAndInvalidate()
+    }
+
+    func addSpace(after targetID: SidebarItem.ID?) {
+        sidebarItemStore.addSpace(after: targetID)
+        refreshRunningAppsAndInvalidate()
+    }
+
     func addURLToSidebar(_ url: URL) {
         let kind = sidebarItemKind(for: url)
         let title = title(for: url, kind: kind)
@@ -530,6 +564,10 @@ public final class AppModel: ObservableObject {
     }
 
     func handlePinnedItemDrop(_ providers: [NSItemProvider], before targetID: SidebarItem.ID?) -> Bool {
+        handleUserItemDrop(providers, before: targetID)
+    }
+
+    func handleUserItemDrop(_ providers: [NSItemProvider], before targetID: SidebarItem.ID?) -> Bool {
         DragDropService.loadPayloads(from: providers) { [weak self] payloads in
             Task { @MainActor in
                 guard let self else {
@@ -630,6 +668,71 @@ public final class AppModel: ObservableObject {
         }
     }
 
+    func refreshWeather() {
+        let preferences = preferencesStore.preferences
+        guard preferences.isWidgetEnabled(.weather) else {
+            weatherInfo = nil
+            weatherErrorDescription = nil
+            return
+        }
+
+        let location = weatherLocation(from: preferences)
+        guard !location.isEmpty else {
+            weatherInfo = nil
+            weatherErrorDescription = nil
+            return
+        }
+
+        let unit = weatherTemperatureUnit(from: preferences)
+        Task { @MainActor [weak self] in
+            do {
+                let info = try await WeatherService.shared.currentWeather(location: location, unit: unit)
+                guard let self,
+                    self.weatherLocation(from: self.preferencesStore.preferences) == location,
+                    self.weatherTemperatureUnit(from: self.preferencesStore.preferences) == unit
+                else {
+                    return
+                }
+
+                self.weatherInfo = info
+                self.weatherErrorDescription = nil
+            } catch {
+                guard let self else {
+                    return
+                }
+
+                self.weatherInfo = nil
+                self.weatherErrorDescription = String(describing: error)
+            }
+        }
+    }
+
+    func refreshVolumeState() {
+        do {
+            volumeState = try volumeService.currentState()
+        } catch {
+            volumeState = .unavailable
+        }
+    }
+
+    func setOutputVolume(_ volume: Double) {
+        do {
+            try volumeService.setVolume(volume)
+            refreshVolumeState()
+        } catch {
+            refreshVolumeState()
+        }
+    }
+
+    func toggleOutputMute() {
+        do {
+            try volumeService.toggleMute(from: volumeState)
+            refreshVolumeState()
+        } catch {
+            refreshVolumeState()
+        }
+    }
+
     func openCurrentMediaApplication() {
         if openMediaApplication(from: mediaPlaybackInfo) {
             return
@@ -698,6 +801,21 @@ public final class AppModel: ObservableObject {
 
         mediaPlaybackInfo = info
         objectWillChange.send()
+    }
+
+    private func weatherLocation(from preferences: SidebarPreferences) -> String {
+        preferences.widgetPreferences
+            .stringSetting(WidgetSettingIDs.weatherLocation, for: .weather, default: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func weatherTemperatureUnit(from preferences: SidebarPreferences) -> WeatherTemperatureUnit {
+        let rawValue = preferences.widgetPreferences.stringSetting(
+            WidgetSettingIDs.weatherTemperatureUnit,
+            for: .weather,
+            default: WeatherTemperatureUnit.celsius.rawValue
+        )
+        return WeatherTemperatureUnit(rawValue: rawValue) ?? .celsius
     }
 
     private func shouldHideMediaSourceApplication(_ app: RunningAppInfo) -> Bool {

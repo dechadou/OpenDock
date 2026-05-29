@@ -12,7 +12,7 @@ enum AppActionService {
             if let url = item.url {
                 NSWorkspace.shared.open(url)
             }
-        case .stack, .system:
+        case .stack, .space, .system:
             break
         }
     }
@@ -69,6 +69,8 @@ enum AppActionService {
             return .openDockSymbol("globe")
         case .stack:
             return .openDockSymbol("square.stack.3d.up")
+        case .space:
+            return .openDockSymbol("rectangle.dashed")
         case .system:
             if let widgetID = item.widgetID,
                 let manifest = WidgetRegistry.shared.manifest(for: widgetID)

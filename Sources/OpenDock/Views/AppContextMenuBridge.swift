@@ -81,9 +81,13 @@ final class ContextMenuCaptureView: NSView {
 final class ClosureMenuItem: NSMenuItem {
     private let handler: () -> Void
 
-    init(title: String, handler: @escaping () -> Void) {
+    init(title: String, systemImage: String? = nil, handler: @escaping () -> Void) {
         self.handler = handler
         super.init(title: title, action: #selector(run), keyEquivalent: "")
+        if let systemImage {
+            image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+            image?.isTemplate = true
+        }
         target = self
     }
 
@@ -104,11 +108,17 @@ enum AppContextMenuFactory {
     ) -> NSMenu {
         let menu = NSMenu()
         menu.addItem(
-            ClosureMenuItem(title: AppContextMenuModel.bringToFrontTitle) {
+            ClosureMenuItem(
+                title: AppContextMenuModel.bringToFrontTitle,
+                systemImage: AppContextMenuModel.symbolName(forTitle: AppContextMenuModel.bringToFrontTitle)
+            ) {
                 appModel.openRunningApp(app)
             })
         menu.addItem(
-            ClosureMenuItem(title: "Pin App") {
+            ClosureMenuItem(
+                title: "Pin App",
+                systemImage: AppContextMenuModel.symbolName(forTitle: "Pin App")
+            ) {
                 appModel.pinRunningApp(app)
             })
 
@@ -117,11 +127,11 @@ enum AppContextMenuFactory {
 
         menu.addItem(.separator())
         menu.addItem(
-            ClosureMenuItem(title: "Quit") {
+            ClosureMenuItem(title: "Quit", systemImage: AppContextMenuModel.symbolName(forTitle: "Quit")) {
                 appModel.quitRunningApp(app)
             })
         menu.addItem(
-            ClosureMenuItem(title: "Force Quit") {
+            ClosureMenuItem(title: "Force Quit", systemImage: AppContextMenuModel.symbolName(forTitle: "Force Quit")) {
                 appModel.quitRunningApp(app, force: true)
             })
 
@@ -136,20 +146,44 @@ enum AppContextMenuFactory {
         removeTitle: String = "Remove Pin"
     ) -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(
-            ClosureMenuItem(title: "Open") {
-                appModel.handleSidebarItemClick(item)
-            })
 
         if let runningApp {
+            menu.addItem(
+                ClosureMenuItem(
+                    title: AppContextMenuModel.bringToFrontTitle,
+                    systemImage: AppContextMenuModel.symbolName(forTitle: AppContextMenuModel.bringToFrontTitle)
+                ) {
+                    appModel.openRunningApp(runningApp)
+                })
+            menu.addItem(
+                ClosureMenuItem(title: removeTitle, systemImage: AppContextMenuModel.symbolName(forTitle: removeTitle)) {
+                    appModel.removeSidebarItem(item)
+                })
+            addStackSubmenu(to: menu, app: runningApp, appModel: appModel)
             addMoveToSubmenu(to: menu, app: runningApp, appModel: appModel)
+
+            menu.addItem(.separator())
+            menu.addItem(
+                ClosureMenuItem(title: "Quit", systemImage: AppContextMenuModel.symbolName(forTitle: "Quit")) {
+                    appModel.quitRunningApp(runningApp)
+                })
+            menu.addItem(
+                ClosureMenuItem(title: "Force Quit", systemImage: AppContextMenuModel.symbolName(forTitle: "Force Quit")) {
+                    appModel.quitRunningApp(runningApp, force: true)
+                })
+        } else {
+            menu.addItem(
+                ClosureMenuItem(title: "Open", systemImage: AppContextMenuModel.symbolName(forTitle: "Open")) {
+                    appModel.handleSidebarItemClick(item)
+                })
+            menu.addItem(.separator())
+            menu.addItem(
+                ClosureMenuItem(title: removeTitle, systemImage: AppContextMenuModel.symbolName(forTitle: removeTitle)) {
+                    appModel.removeSidebarItem(item)
+                })
         }
 
-        menu.addItem(.separator())
-        menu.addItem(
-            ClosureMenuItem(title: removeTitle) {
-                appModel.removeSidebarItem(item)
-            })
+        addSpaceMenuItems(to: menu, item: item, appModel: appModel)
 
         return menu
     }
@@ -163,11 +197,14 @@ enum AppContextMenuFactory {
     ) -> NSMenu {
         let menu = NSMenu()
         menu.addItem(
-            ClosureMenuItem(title: "Open") {
+            ClosureMenuItem(title: "Open", systemImage: AppContextMenuModel.symbolName(forTitle: "Open")) {
                 appModel.handleSidebarItemClick(child)
             })
         menu.addItem(
-            ClosureMenuItem(title: "Move Out of Stack") {
+            ClosureMenuItem(
+                title: "Move Out of Stack",
+                systemImage: AppContextMenuModel.symbolName(forTitle: "Move Out of Stack")
+            ) {
                 appModel.moveChildOutOfStack(childID: child.id, stackID: stackID)
             })
 
@@ -177,7 +214,7 @@ enum AppContextMenuFactory {
 
         menu.addItem(.separator())
         menu.addItem(
-            ClosureMenuItem(title: "Remove") {
+            ClosureMenuItem(title: "Remove", systemImage: AppContextMenuModel.symbolName(forTitle: "Remove")) {
                 appModel.removeSidebarItem(child)
             })
 
@@ -192,11 +229,11 @@ enum AppContextMenuFactory {
     ) -> NSMenu {
         let menu = NSMenu()
         menu.addItem(
-            ClosureMenuItem(title: "Open") {
+            ClosureMenuItem(title: "Open", systemImage: AppContextMenuModel.symbolName(forTitle: "Open")) {
                 appModel.openLaunchableApplication(application)
             })
         menu.addItem(
-            ClosureMenuItem(title: "Pin App") {
+            ClosureMenuItem(title: "Pin App", systemImage: AppContextMenuModel.symbolName(forTitle: "Pin App")) {
                 appModel.pinLaunchableApplication(application)
             })
 
@@ -205,7 +242,10 @@ enum AppContextMenuFactory {
         }
 
         menu.addItem(
-            ClosureMenuItem(title: "Reveal in Finder") {
+            ClosureMenuItem(
+                title: "Reveal in Finder",
+                systemImage: AppContextMenuModel.symbolName(forTitle: "Reveal in Finder")
+            ) {
                 AppActionService.revealInFinder(application.url)
             })
 
@@ -221,12 +261,12 @@ enum AppContextMenuFactory {
         let submenu = NSMenu()
         for stack in appModel.availableStacks {
             submenu.addItem(
-                ClosureMenuItem(title: stack.title) {
+                ClosureMenuItem(title: stack.title, systemImage: "square.stack.3d.up") {
                     appModel.addRunningApp(app, toStack: stack.id)
                 })
         }
 
-        let item = NSMenuItem(title: "Add to Stack", action: nil, keyEquivalent: "")
+        let item = submenuItem(title: "Add to Stack", systemImage: AppContextMenuModel.symbolName(forTitle: "Add to Stack"))
         item.submenu = submenu
         menu.addItem(item)
     }
@@ -247,31 +287,87 @@ enum AppContextMenuFactory {
         if PermissionService.isAccessibilityTrusted {
             for (display, title) in zip(displays, titles) {
                 submenu.addItem(
-                    ClosureMenuItem(title: title) {
+                    ClosureMenuItem(title: title, systemImage: "display") {
                         appModel.moveRunningApp(app, to: display)
                     })
             }
         } else {
             submenu.addItem(
-                ClosureMenuItem(title: "Enable Accessibility") {
+                ClosureMenuItem(
+                    title: "Enable Accessibility",
+                    systemImage: AppContextMenuModel.symbolName(forTitle: "Enable Accessibility")
+                ) {
                     PermissionService.requestAccessibilityPrompt()
                     PermissionService.openAccessibilitySettings()
                 })
         }
 
-        let item = NSMenuItem(title: "Move To", action: nil, keyEquivalent: "")
+        let item = submenuItem(title: "Move To", systemImage: AppContextMenuModel.symbolName(forTitle: "Move To"))
         item.submenu = submenu
         menu.addItem(item)
+    }
+
+    @MainActor
+    private static func addSpaceMenuItems(to menu: NSMenu, item: SidebarItem, appModel: AppModel) {
+        menu.addItem(.separator())
+        menu.addItem(
+            ClosureMenuItem(
+                title: "Add Space Before",
+                systemImage: AppContextMenuModel.symbolName(forTitle: "Add Space Before")
+            ) {
+                appModel.addSpace(before: item.id)
+            })
+        menu.addItem(
+            ClosureMenuItem(
+                title: "Add Space After",
+                systemImage: AppContextMenuModel.symbolName(forTitle: "Add Space After")
+            ) {
+                appModel.addSpace(after: item.id)
+            })
+    }
+
+    @MainActor
+    private static func submenuItem(title: String, systemImage: String?) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        if let systemImage {
+            item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+            item.image?.isTemplate = true
+        }
+        return item
     }
 }
 
 public enum AppContextMenuModel {
-    public static let bringToFrontTitle = "Bring to front"
+    public static let bringToFrontTitle = "Bring to Front"
     public static let previewWindowsTitle = "Preview Windows"
     public static let revealInFinderTitle = "Reveal in Finder"
 
     public static func runningAppMenuTitles(hasStacks: Bool, hasMoveTo: Bool) -> [String] {
         var titles = [bringToFrontTitle, "Pin App"]
+
+        if hasStacks {
+            titles.append("Add to Stack")
+        }
+
+        if hasMoveTo {
+            titles.append("Move To")
+        }
+
+        titles.append(contentsOf: ["Quit", "Force Quit"])
+        return titles
+    }
+
+    public static func pinnedApplicationMenuTitles(
+        isRunning: Bool,
+        hasStacks: Bool,
+        hasMoveTo: Bool,
+        removeTitle: String = "Remove Pin"
+    ) -> [String] {
+        guard isRunning else {
+            return ["Open", removeTitle]
+        }
+
+        var titles = [bringToFrontTitle, removeTitle]
 
         if hasStacks {
             titles.append("Add to Stack")
@@ -298,6 +394,39 @@ public enum AppContextMenuModel {
         }
 
         return displayNames
+    }
+
+    public static func symbolName(forTitle title: String) -> String? {
+        switch title {
+        case bringToFrontTitle, "Open":
+            return "arrow.up.forward.app"
+        case "Pin App":
+            return "pin"
+        case "Remove Pin":
+            return "pin.slash"
+        case "Add to Stack":
+            return "square.stack.3d.up"
+        case "Move To":
+            return "display.2"
+        case "Quit":
+            return "power"
+        case "Force Quit":
+            return "xmark.octagon"
+        case "Reveal in Finder", "Open in Finder":
+            return "finder"
+        case "Move Out of Stack":
+            return "arrow.up.left.square"
+        case "Remove", "Remove Stack", "Remove Space":
+            return "trash"
+        case "Enable Accessibility":
+            return "lock.shield"
+        case "Add Space Before":
+            return "arrow.left.to.line"
+        case "Add Space After":
+            return "arrow.right.to.line"
+        default:
+            return nil
+        }
     }
 }
 

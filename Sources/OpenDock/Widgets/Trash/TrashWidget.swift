@@ -23,12 +23,16 @@ private struct TrashWidgetContextMenu: View {
     @ObservedObject var appModel: AppModel
 
     var body: some View {
-        Button("Open Trash") {
+        Button {
             TrashService.openTrash()
+        } label: {
+            Label("Open Trash", systemImage: "trash")
         }
 
-        Button("Empty Trash") {
+        Button {
             appModel.emptyTrashWithConfirmation()
+        } label: {
+            Label("Empty Trash", systemImage: "trash.slash")
         }
     }
 }

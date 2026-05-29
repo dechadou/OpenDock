@@ -36,11 +36,15 @@ public extension WidgetID {
     static let windows = WidgetID("windows")
     static let trash = WidgetID("trash")
     static let dateTime = WidgetID("date-time")
+    static let weather = WidgetID("weather")
     static let media = WidgetID("media")
+    static let volume = WidgetID("volume")
 }
 
 public enum WidgetSettingIDs {
     public static let hideMediaSourceAppIcon = "hideSourceAppIcon"
+    public static let weatherLocation = "location"
+    public static let weatherTemperatureUnit = "temperatureUnit"
 }
 
 public enum WidgetPlacement: String, Codable, Sendable {
@@ -94,6 +98,17 @@ public enum WidgetSettingType: String, Codable, Sendable {
     case string
     case integer
     case number
+    case choice
+}
+
+public struct WidgetSettingOption: Codable, Equatable, Identifiable, Sendable {
+    public var id: String
+    public var title: String
+
+    public init(id: String, title: String) {
+        self.id = id
+        self.title = title
+    }
 }
 
 public enum WidgetSettingValue: Codable, Equatable, Sendable {
@@ -169,6 +184,7 @@ public struct WidgetSettingDefinition: Codable, Equatable, Identifiable, Sendabl
     public var title: String
     public var detail: String?
     public var defaultValue: WidgetSettingValue
+    public var options: [WidgetSettingOption]
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -176,6 +192,7 @@ public struct WidgetSettingDefinition: Codable, Equatable, Identifiable, Sendabl
         case title
         case detail = "description"
         case defaultValue
+        case options
     }
 
     public init(
@@ -183,13 +200,25 @@ public struct WidgetSettingDefinition: Codable, Equatable, Identifiable, Sendabl
         type: WidgetSettingType,
         title: String,
         detail: String? = nil,
-        defaultValue: WidgetSettingValue
+        defaultValue: WidgetSettingValue,
+        options: [WidgetSettingOption] = []
     ) {
         self.id = id
         self.type = type
         self.title = title
         self.detail = detail
         self.defaultValue = defaultValue
+        self.options = options
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.type = try container.decode(WidgetSettingType.self, forKey: .type)
+        self.title = try container.decode(String.self, forKey: .title)
+        self.detail = try container.decodeIfPresent(String.self, forKey: .detail)
+        self.defaultValue = try container.decode(WidgetSettingValue.self, forKey: .defaultValue)
+        self.options = try container.decodeIfPresent([WidgetSettingOption].self, forKey: .options) ?? []
     }
 }
 
@@ -485,7 +514,9 @@ public struct WidgetRegistry: Sendable {
         [
             WindowsWidgetDefinition(),
             DateTimeWidgetDefinition(),
+            WeatherWidgetDefinition(),
             MediaWidgetDefinition(),
+            VolumeWidgetDefinition(),
             TrashWidgetDefinition(),
         ]
     }

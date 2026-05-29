@@ -29,7 +29,7 @@ Each built-in widget needs:
   "systemImage": "cloud.sun",
   "defaultEnabled": true,
   "placement": "final",
-  "order": 35,
+  "order": 25,
   "dockSize": {
     "vertical": { "type": "square" },
     "horizontal": { "type": "square" }
@@ -41,6 +41,17 @@ Each built-in widget needs:
       "title": "Location",
       "description": "City or location name.",
       "defaultValue": ""
+    },
+    {
+      "id": "temperatureUnit",
+      "type": "choice",
+      "title": "Temperature",
+      "description": "Choose how weather temperatures are shown.",
+      "defaultValue": "celsius",
+      "options": [
+        { "id": "celsius", "title": "Celsius" },
+        { "id": "fahrenheit", "title": "Fahrenheit" }
+      ]
     }
   ]
 }
@@ -59,54 +70,25 @@ first.
 - `expanded`: wider inline widget; set `minimumLength` and optionally
   `iconMultiplier`.
 
-Settings support `boolean`, `string`, `integer`, and `number`. Boolean and
+Settings support `boolean`, `string`, `integer`, `number`, and `choice`. Boolean and
 string settings render automatically as options nested under their widget in
-Settings.
+Settings. `choice` settings render as segmented pickers and use string values
+from their `options` list.
 
-## Add Weather
+## Built-in Weather
 
-1. Add `Sources/OpenDock/Resources/Widgets/weather/widget.json`.
-2. Add `Sources/OpenDock/Widgets/Weather/WeatherWidget.swift`.
-3. Implement `WidgetDefinition`:
+Weather uses Open-Meteo and needs no API key. Its manifest stores two settings:
+`location` and `temperatureUnit`. The dock view stays square and centered, with
+the temperature on top and the weather symbol below. The location field searches
+Open-Meteo geocoding suggestions after the user types at least two characters, so
+the saved value can use the provider's normalized city, region, and country text.
 
-```swift
-import SwiftUI
+## Built-in Volume
 
-struct WeatherWidgetDefinition: WidgetDefinition {
-    let manifest = WidgetManifestLoader.requireBundledManifest(id: "weather")
-
-    @MainActor
-    func makeDockView(context: WidgetContext) -> AnyView {
-        AnyView(
-            SidebarIconButtonLabel(
-                icon: .openDockSymbol(manifest.systemImage),
-                iconSize: context.iconSize
-            )
-        )
-    }
-
-    @MainActor
-    func performPrimaryAction(context: WidgetContext) {
-        // Open a popover, refresh weather, or launch a details surface.
-    }
-}
-```
-
-4. Register it in `WidgetRegistry.builtinDefinitions`:
-
-```swift
-WeatherWidgetDefinition(),
-```
-
-5. Read settings through `context.appModel.preferencesStore.preferences`:
-
-```swift
-let location = context.appModel.preferencesStore.preferences.widgetPreferences
-    .stringSetting("location", for: "weather", default: "")
-```
-
-6. Add focused tests for manifest decoding, registry order, default injection,
-   visibility, sizing, and any weather service behavior.
+Volume uses CoreAudio/AudioToolbox against the default output device. The dock
+view is only a speaker icon; clicking it opens a vertical popover with the
+slider and mute button. Devices that do not expose software volume or mute render
+disabled controls.
 
 ## Compatibility
 

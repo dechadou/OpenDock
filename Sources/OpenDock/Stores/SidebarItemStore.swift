@@ -68,6 +68,28 @@ public final class SidebarItemStore: ObservableObject {
         add(SidebarItem(kind: .stack, title: title, children: []))
     }
 
+    @discardableResult
+    public func appendSpace() -> SidebarItem {
+        add(SidebarItem.space())
+    }
+
+    @discardableResult
+    public func addSpace(before targetID: SidebarItem.ID?) -> SidebarItem {
+        insertUserItem(SidebarItem.space(), before: targetID)
+    }
+
+    @discardableResult
+    public func addSpace(after targetID: SidebarItem.ID?) -> SidebarItem {
+        guard let targetID,
+            let targetIndex = items.firstIndex(where: { $0.id == targetID && Self.canBeUserItem($0) })
+        else {
+            return appendSpace()
+        }
+
+        let nextUserItemID = items[(targetIndex + 1)...].first(where: Self.canBeUserItem)?.id
+        return insertUserItem(SidebarItem.space(), before: nextUserItemID)
+    }
+
     public func remove(id: SidebarItem.ID) {
         items.removeAll { $0.id == id }
         for index in items.indices {
@@ -111,7 +133,7 @@ public final class SidebarItemStore: ObservableObject {
 
     public func movePinnedItem(id: SidebarItem.ID, before targetID: SidebarItem.ID?) {
         guard let sourceIndex = items.firstIndex(where: { $0.id == id }),
-            Self.canBePinnedItem(items[sourceIndex])
+            Self.canBeUserItem(items[sourceIndex])
         else {
             return
         }
@@ -119,13 +141,13 @@ public final class SidebarItemStore: ObservableObject {
         let item = items.remove(at: sourceIndex)
         let insertionIndex: Int
         if let targetID,
-            let targetIndex = items.firstIndex(where: { $0.id == targetID && Self.canBePinnedItem($0) })
+            let targetIndex = items.firstIndex(where: { $0.id == targetID && Self.canBeUserItem($0) })
         {
             insertionIndex = targetIndex
         } else {
             insertionIndex =
                 items
-                .lastIndex(where: { $0.kind == .stack || Self.canBePinnedItem($0) })
+                .lastIndex(where: Self.canBeUserItem)
                 .map { $0 + 1 }
                 ?? 0
         }
@@ -248,6 +270,30 @@ public final class SidebarItemStore: ObservableObject {
         }
     }
 
+    @discardableResult
+    private func insertUserItem(_ item: SidebarItem, before targetID: SidebarItem.ID?) -> SidebarItem {
+        if let existing = items.first(where: { isDuplicate($0, item) }) {
+            return existing
+        }
+
+        let insertionIndex: Int
+        if let targetID,
+            let targetIndex = items.firstIndex(where: { $0.id == targetID && Self.canBeUserItem($0) })
+        {
+            insertionIndex = targetIndex
+        } else {
+            insertionIndex =
+                items
+                .lastIndex(where: Self.canBeUserItem)
+                .map { $0 + 1 }
+                ?? items.count
+        }
+
+        items.insert(item, at: insertionIndex)
+        save()
+        return item
+    }
+
     private func containsWidget(_ widgetID: WidgetID) -> Bool {
         items.contains { $0.kind == .system && $0.widgetID == widgetID }
     }
@@ -256,7 +302,7 @@ public final class SidebarItemStore: ObservableObject {
         switch item.kind {
         case .application, .file, .folder, .url:
             return true
-        case .stack, .system:
+        case .stack, .space, .system:
             return false
         }
     }
@@ -265,7 +311,16 @@ public final class SidebarItemStore: ObservableObject {
         switch item.kind {
         case .application, .file, .folder, .url:
             return true
-        case .stack, .system:
+        case .stack, .space, .system:
+            return false
+        }
+    }
+
+    private static func canBeUserItem(_ item: SidebarItem) -> Bool {
+        switch item.kind {
+        case .application, .file, .folder, .url, .stack, .space:
+            return true
+        case .system:
             return false
         }
     }
@@ -294,6 +349,10 @@ public final class SidebarItemStore: ObservableObject {
     }
 
     private func isDuplicate(_ lhs: SidebarItem, _ rhs: SidebarItem) -> Bool {
+        if lhs.kind == .space || rhs.kind == .space {
+            return false
+        }
+
         if lhs.kind == .system || rhs.kind == .system {
             return lhs.widgetID == rhs.widgetID
         }

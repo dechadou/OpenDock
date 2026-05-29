@@ -1,0 +1,14 @@
+{
+  "id": "volume",
+  "title": "Volume",
+  "description": "Control the default output volume and mute state.",
+  "systemImage": "speaker.wave.2",
+  "defaultEnabled": true,
+  "placement": "final",
+  "order": 35,
+  "dockSize": {
+    "vertical": { "type": "square" },
+    "horizontal": { "type": "square" }
+  },
+  "settings": []
+}

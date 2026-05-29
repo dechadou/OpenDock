@@ -11,8 +11,10 @@ struct DateTimeWidgetDefinition: WidgetDefinition {
     @MainActor
     func makeContextMenu(context: WidgetContext) -> AnyView {
         AnyView(
-            Button("Open Calendar") {
+            Button {
                 context.presentCalendar()
+            } label: {
+                Label("Open Calendar", systemImage: "calendar")
             }
         )
     }

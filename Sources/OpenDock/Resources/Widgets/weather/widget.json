@@ -1,0 +1,33 @@
+{
+  "id": "weather",
+  "title": "Weather",
+  "description": "Show current conditions for a saved location.",
+  "systemImage": "cloud.sun",
+  "defaultEnabled": true,
+  "placement": "final",
+  "order": 25,
+  "dockSize": {
+    "vertical": { "type": "square" },
+    "horizontal": { "type": "square" }
+  },
+  "settings": [
+    {
+      "id": "location",
+      "type": "string",
+      "title": "Location",
+      "description": "City or location name for current weather.",
+      "defaultValue": ""
+    },
+    {
+      "id": "temperatureUnit",
+      "type": "choice",
+      "title": "Temperature",
+      "description": "Choose how weather temperatures are shown.",
+      "defaultValue": "celsius",
+      "options": [
+        { "id": "celsius", "title": "Celsius" },
+        { "id": "fahrenheit", "title": "Fahrenheit" }
+      ]
+    }
+  ]
+}

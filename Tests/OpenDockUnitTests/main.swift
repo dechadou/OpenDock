@@ -99,6 +99,18 @@ struct OpenDockUnitTestRunner {
                 }
             ),
             (
+                "weather service decoding",
+                {
+                    try testWeatherServiceDecoding()
+                }
+            ),
+            (
+                "volume service backend",
+                {
+                    try testVolumeServiceBackend()
+                }
+            ),
+            (
                 "widget registry rejects duplicate ids",
                 {
                     try testWidgetRegistryRejectsDuplicateIDs()
@@ -145,6 +157,14 @@ struct OpenDockUnitTestRunner {
                 {
                     try await MainActor.run {
                         try testSidebarItemsReorder()
+                    }
+                }
+            ),
+            (
+                "sidebar spaces persist and reorder",
+                {
+                    try await MainActor.run {
+                        try testSidebarSpacesPersistAndReorder()
                     }
                 }
             ),
@@ -493,6 +513,8 @@ struct OpenDockUnitTestRunner {
 
     private static func testWidgetManifestDecoding() throws {
         let manifest = try WidgetManifestLoader.bundledManifest(id: .media)
+        let weather = try WidgetManifestLoader.bundledManifest(id: .weather)
+        let volume = try WidgetManifestLoader.bundledManifest(id: .volume)
 
         try expect(manifest.id == .media, "expected media manifest id")
         try expect(manifest.title == "Media Controls", "expected media manifest title")
@@ -502,16 +524,105 @@ struct OpenDockUnitTestRunner {
             manifest.dockSize.length(edge: .bottom, iconSize: 34) > manifest.dockSize.length(edge: .left, iconSize: 34),
             "expected media widget to use expanded horizontal sizing"
         )
+        try expect(
+            weather.settings.map(\.id) == [WidgetSettingIDs.weatherLocation, WidgetSettingIDs.weatherTemperatureUnit],
+            "expected weather settings from manifest"
+        )
+        try expect(weather.settings.last?.type == .choice, "expected weather unit to be a choice")
+        try expect(weather.settings.last?.options.map(\.id) == ["celsius", "fahrenheit"], "expected weather unit options")
+        try expect(
+            volume.dockSize.length(edge: .bottom, iconSize: 34) == volume.dockSize.length(edge: .left, iconSize: 34),
+            "expected volume widget to stay icon-sized on every edge"
+        )
     }
 
     private static func testWidgetRegistryValidation() throws {
         let registry = WidgetRegistry.shared
         let ids = registry.manifests.map(\.id)
 
-        try expect(ids == [.windows, .dateTime, .media, .trash], "expected manifest order to drive final widget order")
+        try expect(
+            ids == [.windows, .dateTime, .weather, .media, .volume, .trash],
+            "expected manifest order to drive final widget order"
+        )
         try expect(Set(ids).count == ids.count, "expected unique built-in widget ids")
-        try expect(registry.defaultManifests.count == 4, "expected all built-in widgets to be default-enabled")
+        try expect(registry.defaultManifests.count == 6, "expected all built-in widgets to be default-enabled")
         try expect(registry.definition(for: .trash) != nil, "expected trash definition")
+    }
+
+    private static func testWeatherServiceDecoding() throws {
+        let geocodingData = """
+            {
+              "results": [
+                {
+                  "name": "Buenos Aires",
+                  "latitude": -34.61315,
+                  "longitude": -58.37723,
+                  "country": "Argentina",
+                  "admin1": "Buenos Aires F.D."
+                }
+              ]
+            }
+            """.data(using: .utf8)!
+        let forecastData = """
+            {
+              "current": {
+                "temperature_2m": 18.6,
+                "weather_code": 2,
+                "is_day": 1
+              }
+            }
+            """.data(using: .utf8)!
+
+        let location = try WeatherService.decodeLocation(from: geocodingData, query: "Buenos Aires")
+        let locations = try WeatherService.decodeLocations(from: geocodingData)
+        let info = try WeatherService.decodeWeatherInfo(
+            from: forecastData,
+            location: location,
+            unit: .celsius,
+            observedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        try expect(WeatherService.geocodingURL(for: "Buenos Aires")?.host == "geocoding-api.open-meteo.com", "expected geocoding host")
+        try expect(
+            WeatherService.geocodingURL(for: "Buenos Aires", count: 5)?.absoluteString.contains("count=5") == true,
+            "expected geocoding autocomplete count"
+        )
+        try expect(
+            WeatherService.forecastURL(latitude: -34.61315, longitude: -58.37723, unit: .fahrenheit)?
+                .absoluteString
+                .contains("temperature_unit=fahrenheit") == true,
+            "expected fahrenheit forecast URL"
+        )
+        try expect(location.displayName.contains("Buenos Aires"), "expected decoded location")
+        try expect(locations.map(\.displayName) == [location.displayName], "expected autocomplete locations to decode")
+        try expect(location.id.contains("Buenos Aires"), "expected decoded location to be identifiable")
+        try expect(info.roundedTemperatureText == "19°", "expected rounded temperature")
+        try expect(
+            WeatherConditionSymbolMapper.symbolName(for: info.weatherCode, isDay: info.isDay) == "cloud.sun.fill",
+            "expected partly cloudy daytime symbol"
+        )
+    }
+
+    private static func testVolumeServiceBackend() throws {
+        let backend = TestVolumeBackend(
+            state: VolumeState(
+                volume: 0.42,
+                isMuted: false,
+                isVolumeSettable: true,
+                isMuteSettable: true,
+                outputDeviceName: "Studio Display"
+            )
+        )
+        let service = VolumeService(backend: backend)
+        let state = try service.currentState()
+
+        try expect(state.volume == 0.42, "expected backend state")
+        try service.setVolume(1.4)
+        try expect(backend.lastVolume == 1, "expected volume clamped high")
+        try service.setVolume(-0.4)
+        try expect(backend.lastVolume == 0, "expected volume clamped low")
+        try service.toggleMute(from: backend.state)
+        try expect(backend.lastMuted == true, "expected mute toggle")
     }
 
     private static func testWidgetRegistryRejectsDuplicateIDs() throws {
@@ -700,6 +811,43 @@ struct OpenDockUnitTestRunner {
         let sections = SidebarDockLayout.sections(from: store.items)
         try expect(sections.stacks.map(\.title) == ["Work"], "expected stack section to stay separate")
         try expect(sections.pinnedItems.map(\.title) == ["First", "Second"], "expected only pinned items to reorder")
+        try expect(sections.userItems.map(\.title) == ["First", "Work", "Second"], "expected user item order to include stack position")
+    }
+
+    @MainActor
+    private static func testSidebarSpacesPersistAndReorder() throws {
+        let fileURL = try makeTemporaryDirectory().appendingPathComponent("SidebarItems.json")
+        let store = SidebarItemStore(fileURL: fileURL, legacyPinnedItemsURL: fileURL.deletingLastPathComponent().appendingPathComponent("missing.json"))
+        store.clear()
+
+        let first = store.add(kind: .url, title: "First", url: URL(string: "https://first.test"))
+        let second = store.add(kind: .url, title: "Second", url: URL(string: "https://second.test"))
+        let beforeSecond = store.addSpace(before: second.id)
+        let afterSecond = store.addSpace(after: second.id)
+
+        try expect(
+            SidebarDockLayout.sections(from: store.items).userItems.map(\.kind) == [.url, .space, .url, .space],
+            "expected spaces to preserve user item order"
+        )
+
+        store.movePinnedItem(id: afterSecond.id, before: first.id)
+        try expect(
+            SidebarDockLayout.sections(from: store.items).userItems.map(\.id) == [afterSecond.id, first.id, beforeSecond.id, second.id],
+            "expected spaces to reorder with user items"
+        )
+
+        _ = store.appendSpace()
+        _ = store.appendSpace()
+        try expect(
+            SidebarDockLayout.sections(from: store.items).userItems.filter { $0.kind == .space }.count == 4,
+            "expected spaces not to deduplicate"
+        )
+
+        let reloaded = SidebarItemStore(fileURL: fileURL, legacyPinnedItemsURL: fileURL.deletingLastPathComponent().appendingPathComponent("missing.json"))
+        try expect(
+            SidebarDockLayout.sections(from: reloaded.items).userItems.contains { $0.kind == .space },
+            "expected spaces to persist"
+        )
     }
 
     @MainActor
@@ -807,21 +955,28 @@ struct OpenDockUnitTestRunner {
         let stack = SidebarItem(kind: .stack, title: "Work", children: [])
         let windowSwitcher = SidebarItem.widget(.windows)
         let calendar = SidebarItem.widget(.dateTime)
+        let weather = SidebarItem.widget(.weather)
         let trash = SidebarItem.widget(.trash)
         let media = SidebarItem.widget(.media)
-        let items = [trash, app, media, stack, calendar, windowSwitcher]
+        let volume = SidebarItem.widget(.volume)
+        let space = SidebarItem.space()
+        let items = [trash, app, weather, media, stack, calendar, volume, space, windowSwitcher]
         let sections = SidebarDockLayout.sections(from: items)
 
         try expect(
             sections.stacks.map(\.title) == ["Work"],
-            "expected stacks to be first section"
+            "expected stacks to stay available from user items"
         )
         try expect(
             sections.pinnedItems.map(\.title) == ["Finder"],
-            "expected pinned items to be second section"
+            "expected pinned items to stay available from user items"
         )
         try expect(
-            sections.finalWidgets.compactMap(\.widgetID) == [.windows, .dateTime, .media, .trash],
+            sections.userItems.map(\.kind) == [.application, .stack, .space],
+            "expected user items to preserve stored order"
+        )
+        try expect(
+            sections.finalWidgets.compactMap(\.widgetID) == [.windows, .dateTime, .weather, .media, .volume, .trash],
             "expected fixed final widget order"
         )
         try expect(
@@ -871,7 +1026,9 @@ struct OpenDockUnitTestRunner {
         var widgetPreferences = SidebarPreferences.defaults
         widgetPreferences.widgetPreferences.setEnabled(false, for: .trash)
         widgetPreferences.widgetPreferences.setEnabled(false, for: .dateTime)
+        widgetPreferences.widgetPreferences.setEnabled(false, for: .weather)
         widgetPreferences.widgetPreferences.setEnabled(false, for: .media)
+        widgetPreferences.widgetPreferences.setEnabled(false, for: .volume)
 
         try expect(
             !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.trash), preferences: widgetPreferences),
@@ -882,8 +1039,16 @@ struct OpenDockUnitTestRunner {
             "expected calendar to hide when disabled"
         )
         try expect(
+            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.weather), preferences: widgetPreferences),
+            "expected weather to hide when disabled"
+        )
+        try expect(
             !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.media), preferences: widgetPreferences),
             "expected media to hide when disabled"
+        )
+        try expect(
+            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.volume), preferences: widgetPreferences),
+            "expected volume to hide when disabled"
         )
 
         let stack = SidebarItem(kind: .stack, title: "Work", children: [])
@@ -1144,7 +1309,12 @@ struct OpenDockUnitTestRunner {
 
     private static func testAppContextMenuModel() throws {
         let runningAppTitles = AppContextMenuModel.runningAppMenuTitles(hasStacks: true, hasMoveTo: true)
+        let pinnedRunningTitles = AppContextMenuModel.pinnedApplicationMenuTitles(isRunning: true, hasStacks: true, hasMoveTo: true)
         try expect(runningAppTitles.first == AppContextMenuModel.bringToFrontTitle, "expected running app action title")
+        try expect(
+            pinnedRunningTitles == runningAppTitles.map { $0 == "Pin App" ? "Remove Pin" : $0 },
+            "expected pinned running app menu to match running controls while replacing pin action"
+        )
         try expect(
             !runningAppTitles.contains(AppContextMenuModel.previewWindowsTitle),
             "expected dock running app menu model to exclude preview windows"
@@ -1165,6 +1335,9 @@ struct OpenDockUnitTestRunner {
             AppContextMenuModel.moveToItemTitles(displayNames: ["Built-in"], accessibilityTrusted: true).isEmpty,
             "expected no move menu for one display"
         )
+        try expect(AppContextMenuModel.symbolName(forTitle: "Quit") == "power", "expected quit icon")
+        try expect(AppContextMenuModel.symbolName(forTitle: "Force Quit") == "xmark.octagon", "expected force quit icon")
+        try expect(AppContextMenuModel.symbolName(forTitle: "Add Space Before") == "arrow.left.to.line", "expected space icon")
     }
 
     private static func testMenuBarActionModel() throws {
@@ -1299,6 +1472,30 @@ struct OpenDockUnitTestRunner {
             .appendingPathComponent("OpenDockTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+}
+
+private final class TestVolumeBackend: VolumeAudioBackend, @unchecked Sendable {
+    var state: VolumeState
+    var lastVolume: Double?
+    var lastMuted: Bool?
+
+    init(state: VolumeState) {
+        self.state = state
+    }
+
+    func currentState() throws -> VolumeState {
+        state
+    }
+
+    func setVolume(_ volume: Double) throws {
+        lastVolume = volume
+        state.volume = volume
+    }
+
+    func setMuted(_ isMuted: Bool) throws {
+        lastMuted = isMuted
+        state.isMuted = isMuted
     }
 }
 

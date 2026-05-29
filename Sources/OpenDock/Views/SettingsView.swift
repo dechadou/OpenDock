@@ -12,6 +12,7 @@ public struct SettingsView: View {
     @State private var bottomRevealDelayValue = Double(SidebarPreferences.defaults.bottomRevealDelayMilliseconds)
     @State private var activeSliderIDs: Set<String> = []
     @State private var preferenceDebouncer = PreferenceDebouncer()
+    @State private var handledSettingsNavigationSequence = 0
 
     public init(appModel: AppModel) {
         self.appModel = appModel
@@ -30,16 +31,21 @@ public struct SettingsView: View {
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 250)
         } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
-                    pageHeader
-                    selectedContent
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 26) {
+                        pageHeader
+                        selectedContent
+                    }
+                    .frame(maxWidth: 760, alignment: .topLeading)
+                    .padding(.horizontal, 34)
+                    .padding(.vertical, 30)
                 }
-                .frame(maxWidth: 760, alignment: .topLeading)
-                .padding(.horizontal, 34)
-                .padding(.vertical, 30)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .onReceive(appModel.$settingsNavigationRequest) { request in
+                    handleSettingsNavigation(request, scrollProxy: scrollProxy)
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(minWidth: 900, minHeight: 640)
         .background {
@@ -375,6 +381,7 @@ public struct SettingsView: View {
                 let manifests = WidgetRegistry.shared.manifests(placement: .final)
                 ForEach(Array(manifests.enumerated()), id: \.element.id) { index, manifest in
                     widgetPreferenceRows(for: manifest)
+                        .id(widgetSettingsAnchorID(manifest.id))
 
                     if index < manifests.count - 1 {
                         SettingsDivider()
@@ -485,11 +492,28 @@ public struct SettingsView: View {
                 isOn: widgetBooleanSettingBinding(setting, manifest: manifest)
             )
         case .string:
+            if isWeatherLocationSetting(setting, manifest: manifest) {
+                SettingsRow(title: setting.title, detail: setting.detail ?? "") {
+                    WeatherLocationSettingControl(location: widgetStringSettingBinding(setting, manifest: manifest))
+                }
+            } else {
+                SettingsRow(title: setting.title, detail: setting.detail ?? "") {
+                    TextField(setting.title, text: widgetStringSettingBinding(setting, manifest: manifest))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 190)
+                }
+            }
+        case .choice:
             SettingsRow(title: setting.title, detail: setting.detail ?? "") {
-                TextField(setting.title, text: widgetStringSettingBinding(setting, manifest: manifest))
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 190)
+                Picker(setting.title, selection: widgetStringSettingBinding(setting, manifest: manifest)) {
+                    ForEach(setting.options) { option in
+                        Text(option.title).tag(option.id)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 220)
             }
         case .integer, .number:
             SettingsRow(title: setting.title, detail: setting.detail ?? "") {
@@ -498,6 +522,10 @@ public struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func isWeatherLocationSetting(_ setting: WidgetSettingDefinition, manifest: WidgetManifest) -> Bool {
+        manifest.id == .weather && setting.id == WidgetSettingIDs.weatherLocation
     }
 
     private func widgetEnabledBinding(for manifest: WidgetManifest) -> Binding<Bool> {
@@ -580,6 +608,32 @@ public struct SettingsView: View {
         if category == .themes || category == .customization {
             appModel.revealSidebarForCustomizationPreview()
         }
+    }
+
+    private func handleSettingsNavigation(_ request: SettingsNavigationRequest, scrollProxy: ScrollViewProxy) {
+        guard request.sequence > 0,
+            request.sequence != handledSettingsNavigationSequence
+        else {
+            return
+        }
+
+        handledSettingsNavigationSequence = request.sequence
+
+        guard let widgetID = request.widgetID else {
+            return
+        }
+
+        selectedCategory = .features
+
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                scrollProxy.scrollTo(widgetSettingsAnchorID(widgetID), anchor: .center)
+            }
+        }
+    }
+
+    private func widgetSettingsAnchorID(_ widgetID: WidgetID) -> String {
+        "widget-settings-\(widgetID.rawValue)"
     }
 
     private func resetAppearanceToken(_ token: SidebarAppearanceTokenID) {
@@ -815,6 +869,152 @@ private struct SettingsToggleRow: View {
         SettingsRow(title: title, detail: detail) {
             Toggle(title, isOn: $isOn)
                 .labelsHidden()
+        }
+    }
+}
+
+private struct WeatherLocationSettingControl: View {
+    @Binding var location: String
+    @State private var suggestions: [WeatherLocation] = []
+    @State private var isLoading = false
+    @State private var errorDescription: String?
+    @State private var selectedLocationText: String?
+    @State private var queryTask: Task<Void, Never>?
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            HStack(spacing: 8) {
+                TextField("Location", text: $location)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 260)
+                    .onSubmit {
+                        scheduleSuggestions(for: location, debounce: false)
+                    }
+
+                Button {
+                    scheduleSuggestions(for: location, debounce: false)
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .disabled(trimmedLocation.count < 2)
+                .help("Search locations")
+            }
+
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 292, alignment: .trailing)
+            } else if !suggestions.isEmpty {
+                suggestionsList
+            } else if let errorDescription {
+                Text(errorDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(width: 292, alignment: .trailing)
+            }
+        }
+        .onChange(of: location) { _, nextLocation in
+            scheduleSuggestions(for: nextLocation, debounce: true)
+        }
+        .onDisappear {
+            queryTask?.cancel()
+        }
+    }
+
+    private var suggestionsList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(suggestions) { suggestion in
+                Button {
+                    select(suggestion)
+                } label: {
+                    Text(suggestion.displayName)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+
+                if suggestion.id != suggestions.last?.id {
+                    Divider()
+                }
+            }
+        }
+        .frame(width: 292)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.separator.opacity(0.55), lineWidth: 1))
+    }
+
+    private var trimmedLocation: String {
+        location.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func select(_ suggestion: WeatherLocation) {
+        queryTask?.cancel()
+        selectedLocationText = suggestion.displayName
+        suggestions = []
+        errorDescription = nil
+        location = suggestion.displayName
+    }
+
+    private func scheduleSuggestions(for rawQuery: String, debounce: Bool) {
+        queryTask?.cancel()
+
+        let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2 else {
+            suggestions = []
+            isLoading = false
+            errorDescription = nil
+            return
+        }
+
+        guard query != selectedLocationText else {
+            suggestions = []
+            isLoading = false
+            errorDescription = nil
+            return
+        }
+
+        queryTask = Task { @MainActor in
+            if debounce {
+                do {
+                    try await Task.sleep(nanoseconds: 250_000_000)
+                } catch {
+                    return
+                }
+            }
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            isLoading = true
+            errorDescription = nil
+
+            do {
+                let results = try await WeatherService.shared.searchLocations(matching: query, count: 5)
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                suggestions = results
+                errorDescription = results.isEmpty ? "No matching locations" : nil
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                suggestions = []
+                errorDescription = String(describing: error)
+            }
+
+            isLoading = false
         }
     }
 }

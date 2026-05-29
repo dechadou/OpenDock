@@ -33,22 +33,30 @@ private struct MediaWidgetContextMenu: View {
     @ObservedObject var appModel: AppModel
 
     var body: some View {
-        Button("Open \(appModel.mediaPlaybackInfo?.appName ?? "Media App")") {
+        Button {
             appModel.openCurrentMediaApplication()
+        } label: {
+            Label("Open \(appModel.mediaPlaybackInfo?.appName ?? "Media App")", systemImage: "arrow.up.forward.app")
         }
 
         Divider()
 
-        Button("Previous") {
+        Button {
             appModel.sendMediaCommand(.previous)
+        } label: {
+            Label("Previous", systemImage: "backward.fill")
         }
 
-        Button("Play/Pause") {
+        Button {
             appModel.sendMediaCommand(.playPause)
+        } label: {
+            Label("Play/Pause", systemImage: "playpause.fill")
         }
 
-        Button("Next") {
+        Button {
             appModel.sendMediaCommand(.next)
+        } label: {
+            Label("Next", systemImage: "forward.fill")
         }
     }
 }
