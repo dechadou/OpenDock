@@ -4,8 +4,6 @@ OpenDock is a local-first macOS sidebar for launching apps, organizing shortcuts
 switching windows, checking widgets, and keeping Dock-style controls close to the
 edge of your screen.
 
-## For People Using the App
-
 ### Download
 
 Download the latest beta from the

@@ -69,7 +69,8 @@ struct MediaSidebarPill: View {
     }
 
     private var pillWidth: CGFloat {
-        edge.isVertical ? iconSize + 12 : SidebarDockLayout.mediaControlLength(iconSize: iconSize)
+        WidgetRegistry.shared.manifest(for: .media)?.dockSize.length(edge: edge, iconSize: iconSize)
+            ?? (edge.isVertical ? iconSize + 12 : max(290, iconSize * 5.5))
     }
 
     private var playbackInfo: MediaPlaybackInfo? {

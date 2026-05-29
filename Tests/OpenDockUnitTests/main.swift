@@ -2,6 +2,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import OpenDockCore
+import SwiftUI
 
 struct TestFailure: Error, CustomStringConvertible {
     var description: String
@@ -83,6 +84,36 @@ struct OpenDockUnitTestRunner {
                 "preferences decode media source app icon default",
                 {
                     try testPreferencesDecodeMediaSourceAppIconDefault()
+                }
+            ),
+            (
+                "widget manifest decoding",
+                {
+                    try testWidgetManifestDecoding()
+                }
+            ),
+            (
+                "widget registry validation",
+                {
+                    try testWidgetRegistryValidation()
+                }
+            ),
+            (
+                "widget registry rejects duplicate ids",
+                {
+                    try testWidgetRegistryRejectsDuplicateIDs()
+                }
+            ),
+            (
+                "widget preferences migrate legacy keys",
+                {
+                    try testWidgetPreferencesMigrateLegacyKeys()
+                }
+            ),
+            (
+                "sidebar item migrates legacy system kind",
+                {
+                    try testSidebarItemMigratesLegacySystemKind()
                 }
             ),
             (
@@ -460,6 +491,104 @@ struct OpenDockUnitTestRunner {
         try expect(preferences.hideMediaSourceAppIcon, "expected media source icon hiding to default to true")
     }
 
+    private static func testWidgetManifestDecoding() throws {
+        let manifest = try WidgetManifestLoader.bundledManifest(id: .media)
+
+        try expect(manifest.id == .media, "expected media manifest id")
+        try expect(manifest.title == "Media Controls", "expected media manifest title")
+        try expect(manifest.placement == .final, "expected media widget to live in final placement")
+        try expect(manifest.settings.map(\.id) == [WidgetSettingIDs.hideMediaSourceAppIcon], "expected media setting from manifest")
+        try expect(
+            manifest.dockSize.length(edge: .bottom, iconSize: 34) > manifest.dockSize.length(edge: .left, iconSize: 34),
+            "expected media widget to use expanded horizontal sizing"
+        )
+    }
+
+    private static func testWidgetRegistryValidation() throws {
+        let registry = WidgetRegistry.shared
+        let ids = registry.manifests.map(\.id)
+
+        try expect(ids == [.windows, .dateTime, .media, .trash], "expected manifest order to drive final widget order")
+        try expect(Set(ids).count == ids.count, "expected unique built-in widget ids")
+        try expect(registry.defaultManifests.count == 4, "expected all built-in widgets to be default-enabled")
+        try expect(registry.definition(for: .trash) != nil, "expected trash definition")
+    }
+
+    private static func testWidgetRegistryRejectsDuplicateIDs() throws {
+        let manifest = WidgetManifest(
+            id: "duplicate",
+            title: "Duplicate",
+            description: "Duplicate test widget.",
+            systemImage: "square",
+            defaultEnabled: true,
+            placement: .final,
+            order: 1,
+            dockSize: WidgetDockSizing(
+                vertical: WidgetDockAxisSize(type: .square),
+                horizontal: WidgetDockAxisSize(type: .square)
+            )
+        )
+
+        do {
+            _ = try WidgetRegistry(definitions: [
+                TestWidgetDefinition(manifest: manifest),
+                TestWidgetDefinition(manifest: manifest),
+            ])
+            try expect(false, "expected duplicate widget ids to throw")
+        } catch WidgetRegistry.ValidationError.duplicateID(let id) {
+            try expect(id == "duplicate", "expected duplicate id in validation error")
+        }
+    }
+
+    private static func testWidgetPreferencesMigrateLegacyKeys() throws {
+        let data = """
+            {
+              "edge": "left",
+              "trashWidgetEnabled": false,
+              "dateTimeWidgetEnabled": false,
+              "mediaControlsEnabled": false,
+              "hideMediaSourceAppIcon": false
+            }
+            """.data(using: .utf8)!
+        let preferences = try JSONDecoder().decode(SidebarPreferences.self, from: data)
+
+        try expect(!preferences.isWidgetEnabled(.trash), "expected legacy trash flag to migrate")
+        try expect(!preferences.isWidgetEnabled(.dateTime), "expected legacy date flag to migrate")
+        try expect(!preferences.isWidgetEnabled(.media), "expected legacy media flag to migrate")
+        try expect(
+            !preferences.boolWidgetSetting(WidgetSettingIDs.hideMediaSourceAppIcon, for: .media, default: true),
+            "expected legacy media setting to migrate"
+        )
+
+        let encoded = try JSONEncoder().encode(preferences)
+        let decoded = try JSONDecoder().decode(SidebarPreferences.self, from: encoded)
+        try expect(!decoded.mediaControlsEnabled, "expected migrated media enabled state to round trip")
+        try expect(!decoded.hideMediaSourceAppIcon, "expected migrated media setting to round trip")
+    }
+
+    private static func testSidebarItemMigratesLegacySystemKind() throws {
+        let data = """
+            {
+              "id": "00000000-0000-0000-0000-000000000001",
+              "kind": "system",
+              "title": "Trash",
+              "systemKind": "trash"
+            }
+            """.data(using: .utf8)!
+        let item = try JSONDecoder().decode(SidebarItem.self, from: data)
+
+        try expect(item.widgetID == .trash, "expected legacy systemKind to populate widgetID")
+        try expect(item.systemKind == .trash, "expected decoded legacy systemKind to remain readable")
+
+        let encoded = try JSONEncoder().encode(item)
+        let object = try unwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any],
+            "expected encoded sidebar item object"
+        )
+        try expect(object["widgetID"] as? String == WidgetID.trash.rawValue, "expected widgetID to encode")
+        try expect(object["systemKind"] == nil, "expected legacy systemKind not to re-encode")
+    }
+
     @MainActor
     private static func testPinnedItemsPersist() throws {
         let fileURL = try makeTemporaryDirectory().appendingPathComponent("PinnedItems.json")
@@ -544,8 +673,8 @@ struct OpenDockUnitTestRunner {
         let store = SidebarItemStore(fileURL: sidebarURL, legacyPinnedItemsURL: legacyURL)
 
         try expect(store.items.contains { $0.title == "Finder" && $0.kind == .application }, "expected legacy app pin")
-        try expect(store.items.contains { $0.systemKind == .windowSwitcher }, "expected window switcher widget")
-        try expect(store.items.contains { $0.systemKind == .trash }, "expected trash widget")
+        try expect(store.items.contains { $0.widgetID == .windows }, "expected window switcher widget")
+        try expect(store.items.contains { $0.widgetID == .trash }, "expected trash widget")
         try expect(FileManager.default.fileExists(atPath: sidebarURL.path), "expected migrated sidebar file")
     }
 
@@ -563,7 +692,7 @@ struct OpenDockUnitTestRunner {
         try expect(store.items.map(\.title) == ["Second", "First"], "expected reordered items")
 
         let stack = store.createStack(title: "Work")
-        let trash = store.add(SidebarItem.system(.trash))
+        let trash = store.add(SidebarItem.widget(.trash))
         store.movePinnedItem(id: first.id, before: second.id)
         store.movePinnedItem(id: stack.id, before: second.id)
         store.movePinnedItem(id: trash.id, before: second.id)
@@ -601,11 +730,11 @@ struct OpenDockUnitTestRunner {
 
         let workStack = store.createStack(title: "Work")
         let nestedStack = store.createStack(title: "Nested")
-        let trash = store.add(SidebarItem.system(.trash))
+        let trash = store.add(SidebarItem.widget(.trash))
 
         store.moveMainItemIntoStack(itemID: nestedStack.id, stackID: workStack.id)
         store.moveMainItemIntoStack(itemID: trash.id, stackID: workStack.id)
-        store.addItem(SidebarItem(kind: .system, title: "Windows", systemKind: .windowSwitcher), toStack: workStack.id)
+        store.addItem(SidebarItem.widget(.windows), toStack: workStack.id)
         store.addItem(SidebarItem(kind: .stack, title: "Ad hoc", children: []), toStack: workStack.id)
 
         let updatedStack = try unwrap(store.item(id: workStack.id), "expected stack")
@@ -676,10 +805,10 @@ struct OpenDockUnitTestRunner {
             bundleIdentifier: "com.apple.finder"
         )
         let stack = SidebarItem(kind: .stack, title: "Work", children: [])
-        let windowSwitcher = SidebarItem.system(.windowSwitcher)
-        let calendar = SidebarItem.system(.dateTime)
-        let trash = SidebarItem.system(.trash)
-        let media = SidebarItem.system(.media)
+        let windowSwitcher = SidebarItem.widget(.windows)
+        let calendar = SidebarItem.widget(.dateTime)
+        let trash = SidebarItem.widget(.trash)
+        let media = SidebarItem.widget(.media)
         let items = [trash, app, media, stack, calendar, windowSwitcher]
         let sections = SidebarDockLayout.sections(from: items)
 
@@ -692,11 +821,11 @@ struct OpenDockUnitTestRunner {
             "expected pinned items to be second section"
         )
         try expect(
-            sections.finalSystemItems.compactMap(\.systemKind) == [.windowSwitcher, .dateTime, .media, .trash],
+            sections.finalWidgets.compactMap(\.widgetID) == [.windows, .dateTime, .media, .trash],
             "expected fixed final widget order"
         )
         try expect(
-            SidebarDockLayout.trashItem(from: items)?.systemKind == .trash,
+            SidebarDockLayout.trashItem(from: items)?.widgetID == .trash,
             "expected Trash to be extracted"
         )
         try expect(
@@ -714,8 +843,9 @@ struct OpenDockUnitTestRunner {
                 dividerCount: 0,
                 iconSize: 34,
                 spacing: 8,
-                mediaControlCount: 1,
-                mediaUsesInlineLength: true
+                additionalItemLengths: [
+                    SidebarDockLayout.widgetLength(for: media, edge: .bottom, iconSize: 34)
+                ]
             )
                 > SidebarDockLayout.estimatedLength(itemCount: 2, dividerCount: 0, iconSize: 34, spacing: 8),
             "expected horizontal inline media to consume extra length"
@@ -723,7 +853,7 @@ struct OpenDockUnitTestRunner {
     }
 
     private static func testSidebarVisibilityPolicy() throws {
-        let windowSwitcher = SidebarItem.system(.windowSwitcher)
+        let windowSwitcher = SidebarItem.widget(.windows)
         var preferences = SidebarPreferences.defaults
 
         preferences.windowSwitcherEnabled = true
@@ -739,20 +869,20 @@ struct OpenDockUnitTestRunner {
         )
 
         var widgetPreferences = SidebarPreferences.defaults
-        widgetPreferences.trashWidgetEnabled = false
-        widgetPreferences.dateTimeWidgetEnabled = false
-        widgetPreferences.mediaControlsEnabled = false
+        widgetPreferences.widgetPreferences.setEnabled(false, for: .trash)
+        widgetPreferences.widgetPreferences.setEnabled(false, for: .dateTime)
+        widgetPreferences.widgetPreferences.setEnabled(false, for: .media)
 
         try expect(
-            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.system(.trash), preferences: widgetPreferences),
+            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.trash), preferences: widgetPreferences),
             "expected trash to hide when disabled"
         )
         try expect(
-            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.system(.dateTime), preferences: widgetPreferences),
+            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.dateTime), preferences: widgetPreferences),
             "expected calendar to hide when disabled"
         )
         try expect(
-            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.system(.media), preferences: widgetPreferences),
+            !SidebarVisibilityPolicy.shouldDisplay(SidebarItem.widget(.media), preferences: widgetPreferences),
             "expected media to hide when disabled"
         )
 
@@ -1169,5 +1299,14 @@ struct OpenDockUnitTestRunner {
             .appendingPathComponent("OpenDockTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+}
+
+private struct TestWidgetDefinition: WidgetDefinition {
+    var manifest: WidgetManifest
+
+    @MainActor
+    func makeDockView(context _: WidgetContext) -> AnyView {
+        AnyView(EmptyView())
     }
 }

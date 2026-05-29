@@ -14,7 +14,10 @@ let package = Package(
     targets: [
         .target(
             name: "OpenDockCore",
-            path: "Sources/OpenDock"
+            path: "Sources/OpenDock",
+            resources: [
+                .copy("Resources")
+            ]
         ),
         .executableTarget(
             name: "OpenDock",

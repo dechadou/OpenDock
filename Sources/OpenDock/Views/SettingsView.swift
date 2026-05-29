@@ -372,18 +372,14 @@ public struct SettingsView: View {
             }
 
             SettingsSection("Widgets") {
-                SettingsToggleRow(title: "Trash widget", detail: "Show Trash status at the end of the dock.", isOn: liveBinding(\.trashWidgetEnabled))
-                SettingsDivider()
-                SettingsToggleRow(title: "Date & time widget", detail: "Show calendar and date controls.", isOn: liveBinding(\.dateTimeWidgetEnabled))
-                SettingsDivider()
-                SettingsToggleRow(title: "Media controls", detail: "Show playback controls for Music and Spotify.", isOn: liveBinding(\.mediaControlsEnabled))
-                SettingsDivider()
-                SettingsToggleRow(
-                    title: "Hide controlled media app icon",
-                    detail: "Avoid showing the same media app twice.",
-                    isOn: liveBinding(\.hideMediaSourceAppIcon)
-                )
-                .disabled(!preferences.mediaControlsEnabled)
+                let manifests = WidgetRegistry.shared.manifests(placement: .final)
+                ForEach(Array(manifests.enumerated()), id: \.element.id) { index, manifest in
+                    widgetPreferenceRows(for: manifest)
+
+                    if index < manifests.count - 1 {
+                        SettingsDivider()
+                    }
+                }
             }
         }
     }
@@ -449,6 +445,108 @@ public struct SettingsView: View {
                 }
             }
         )
+    }
+
+    @ViewBuilder
+    private func widgetPreferenceRows(for manifest: WidgetManifest) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingsToggleRow(
+                title: manifest.title,
+                detail: manifest.description,
+                isOn: widgetEnabledBinding(for: manifest)
+            )
+
+            if !manifest.settings.isEmpty {
+                SettingsDivider()
+                    .padding(.leading, 28)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(manifest.settings.enumerated()), id: \.element.id) { index, setting in
+                        widgetSettingRow(setting, manifest: manifest)
+
+                        if index < manifest.settings.count - 1 {
+                            SettingsDivider()
+                        }
+                    }
+                }
+                .padding(.leading, 28)
+                .disabled(!isWidgetEnabled(manifest))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func widgetSettingRow(_ setting: WidgetSettingDefinition, manifest: WidgetManifest) -> some View {
+        switch setting.type {
+        case .boolean:
+            SettingsToggleRow(
+                title: setting.title,
+                detail: setting.detail ?? "",
+                isOn: widgetBooleanSettingBinding(setting, manifest: manifest)
+            )
+        case .string:
+            SettingsRow(title: setting.title, detail: setting.detail ?? "") {
+                TextField(setting.title, text: widgetStringSettingBinding(setting, manifest: manifest))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 190)
+            }
+        case .integer, .number:
+            SettingsRow(title: setting.title, detail: setting.detail ?? "") {
+                Text("Configured in widget code")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func widgetEnabledBinding(for manifest: WidgetManifest) -> Binding<Bool> {
+        Binding(
+            get: {
+                isWidgetEnabled(manifest)
+            },
+            set: { value in
+                updatePreferences { preferences in
+                    if manifest.id == .windows {
+                        preferences.windowSwitcherEnabled = value
+                    } else {
+                        preferences.widgetPreferences.setEnabled(value, for: manifest.id)
+                    }
+                }
+            }
+        )
+    }
+
+    private func widgetBooleanSettingBinding(_ setting: WidgetSettingDefinition, manifest: WidgetManifest) -> Binding<Bool> {
+        Binding(
+            get: {
+                let defaultValue = setting.defaultValue.boolValue ?? false
+                return preferencesStore.preferences.widgetPreferences.boolSetting(setting.id, for: manifest.id, default: defaultValue)
+            },
+            set: { value in
+                updatePreferences { preferences in
+                    preferences.widgetPreferences.setSetting(.bool(value), for: manifest.id, settingID: setting.id)
+                }
+            }
+        )
+    }
+
+    private func widgetStringSettingBinding(_ setting: WidgetSettingDefinition, manifest: WidgetManifest) -> Binding<String> {
+        Binding(
+            get: {
+                let defaultValue = setting.defaultValue.stringValue ?? ""
+                return preferencesStore.preferences.widgetPreferences.stringSetting(setting.id, for: manifest.id, default: defaultValue)
+            },
+            set: { value in
+                updatePreferences { preferences in
+                    preferences.widgetPreferences.setSetting(.string(value), for: manifest.id, settingID: setting.id)
+                }
+            }
+        )
+    }
+
+    private func isWidgetEnabled(_ manifest: WidgetManifest) -> Bool {
+        preferencesStore.preferences.isWidgetEnabled(manifest.id)
     }
 
     private func appearanceColorBinding(_ token: SidebarAppearanceTokenID) -> Binding<Color> {

@@ -1,0 +1,26 @@
+{
+  "id": "media",
+  "title": "Media Controls",
+  "description": "Show playback controls for Music and Spotify.",
+  "systemImage": "playpause",
+  "defaultEnabled": true,
+  "placement": "final",
+  "order": 30,
+  "dockSize": {
+    "vertical": { "type": "square" },
+    "horizontal": {
+      "type": "expanded",
+      "minimumLength": 290,
+      "iconMultiplier": 5.5
+    }
+  },
+  "settings": [
+    {
+      "id": "hideSourceAppIcon",
+      "type": "boolean",
+      "title": "Hide controlled media app icon",
+      "description": "Avoid showing the same media app twice.",
+      "defaultValue": true
+    }
+  ]
+}

@@ -12,13 +12,42 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
     public var windowSwitcherEnabled: Bool
     public var windowPreviewsEnabled: Bool
     public var folderPeekEnabled: Bool
-    public var trashWidgetEnabled: Bool
-    public var dateTimeWidgetEnabled: Bool
-    public var mediaControlsEnabled: Bool
-    public var hideMediaSourceAppIcon: Bool
+    public var widgetPreferences: WidgetPreferences
     public var hideSystemDock: Bool
     public var bottomRevealDelayMilliseconds: Int
     public var appearance: SidebarAppearance
+
+    public var trashWidgetEnabled: Bool {
+        get { isWidgetEnabled(.trash) }
+        set { widgetPreferences.setEnabled(newValue, for: .trash) }
+    }
+
+    public var dateTimeWidgetEnabled: Bool {
+        get { isWidgetEnabled(.dateTime) }
+        set { widgetPreferences.setEnabled(newValue, for: .dateTime) }
+    }
+
+    public var mediaControlsEnabled: Bool {
+        get { isWidgetEnabled(.media) }
+        set { widgetPreferences.setEnabled(newValue, for: .media) }
+    }
+
+    public var hideMediaSourceAppIcon: Bool {
+        get {
+            widgetPreferences.boolSetting(
+                WidgetSettingIDs.hideMediaSourceAppIcon,
+                for: .media,
+                default: true
+            )
+        }
+        set {
+            widgetPreferences.setSetting(
+                .bool(newValue),
+                for: .media,
+                settingID: WidgetSettingIDs.hideMediaSourceAppIcon
+            )
+        }
+    }
 
     private enum CodingKeys: String, CodingKey {
         case edge
@@ -32,6 +61,7 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         case windowSwitcherEnabled
         case windowPreviewsEnabled
         case folderPeekEnabled
+        case widgetPreferences
         case trashWidgetEnabled
         case dateTimeWidgetEnabled
         case mediaControlsEnabled
@@ -53,10 +83,7 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         windowSwitcherEnabled: true,
         windowPreviewsEnabled: true,
         folderPeekEnabled: true,
-        trashWidgetEnabled: true,
-        dateTimeWidgetEnabled: true,
-        mediaControlsEnabled: true,
-        hideMediaSourceAppIcon: true,
+        widgetPreferences: .defaults(),
         hideSystemDock: false,
         bottomRevealDelayMilliseconds: 30,
         appearance: .defaults
@@ -74,6 +101,7 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         windowSwitcherEnabled: Bool = true,
         windowPreviewsEnabled: Bool = true,
         folderPeekEnabled: Bool = true,
+        widgetPreferences: WidgetPreferences? = nil,
         trashWidgetEnabled: Bool = true,
         dateTimeWidgetEnabled: Bool = true,
         mediaControlsEnabled: Bool = true,
@@ -93,17 +121,37 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         self.windowSwitcherEnabled = windowSwitcherEnabled
         self.windowPreviewsEnabled = windowPreviewsEnabled
         self.folderPeekEnabled = folderPeekEnabled
-        self.trashWidgetEnabled = trashWidgetEnabled
-        self.dateTimeWidgetEnabled = dateTimeWidgetEnabled
-        self.mediaControlsEnabled = mediaControlsEnabled
-        self.hideMediaSourceAppIcon = hideMediaSourceAppIcon
         self.hideSystemDock = hideSystemDock
         self.bottomRevealDelayMilliseconds = bottomRevealDelayMilliseconds
         self.appearance = appearance
+
+        if let widgetPreferences {
+            self.widgetPreferences = widgetPreferences.fillingDefaults()
+        } else {
+            self.widgetPreferences = Self.legacyWidgetPreferences(
+                trashWidgetEnabled: trashWidgetEnabled,
+                dateTimeWidgetEnabled: dateTimeWidgetEnabled,
+                mediaControlsEnabled: mediaControlsEnabled,
+                hideMediaSourceAppIcon: hideMediaSourceAppIcon
+            )
+        }
     }
 
     public var panelThickness: Double {
         max(64, iconSize + (spacing * 2) + 22)
+    }
+
+    public func isWidgetEnabled(_ widgetID: WidgetID, registry: WidgetRegistry = .shared) -> Bool {
+        if widgetID == .windows {
+            return windowSwitcherEnabled
+        }
+
+        let defaultEnabled = registry.manifest(for: widgetID)?.defaultEnabled ?? true
+        return widgetPreferences.isEnabled(widgetID, default: defaultEnabled)
+    }
+
+    public func boolWidgetSetting(_ settingID: String, for widgetID: WidgetID, default defaultValue: Bool) -> Bool {
+        widgetPreferences.boolSetting(settingID, for: widgetID, default: defaultValue)
     }
 
     public init(from decoder: Decoder) throws {
@@ -121,14 +169,63 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         self.windowSwitcherEnabled = try container.decodeIfPresent(Bool.self, forKey: .windowSwitcherEnabled) ?? defaults.windowSwitcherEnabled
         self.windowPreviewsEnabled = try container.decodeIfPresent(Bool.self, forKey: .windowPreviewsEnabled) ?? defaults.windowPreviewsEnabled
         self.folderPeekEnabled = try container.decodeIfPresent(Bool.self, forKey: .folderPeekEnabled) ?? defaults.folderPeekEnabled
-        self.trashWidgetEnabled = try container.decodeIfPresent(Bool.self, forKey: .trashWidgetEnabled) ?? defaults.trashWidgetEnabled
-        self.dateTimeWidgetEnabled = try container.decodeIfPresent(Bool.self, forKey: .dateTimeWidgetEnabled) ?? defaults.dateTimeWidgetEnabled
-        self.mediaControlsEnabled = try container.decodeIfPresent(Bool.self, forKey: .mediaControlsEnabled) ?? defaults.mediaControlsEnabled
-        self.hideMediaSourceAppIcon =
-            try container.decodeIfPresent(Bool.self, forKey: .hideMediaSourceAppIcon) ?? defaults.hideMediaSourceAppIcon
+
+        if let decodedWidgetPreferences = try container.decodeIfPresent(WidgetPreferences.self, forKey: .widgetPreferences) {
+            self.widgetPreferences = decodedWidgetPreferences.fillingDefaults()
+        } else {
+            self.widgetPreferences = Self.legacyWidgetPreferences(
+                trashWidgetEnabled: try container.decodeIfPresent(Bool.self, forKey: .trashWidgetEnabled) ?? defaults.trashWidgetEnabled,
+                dateTimeWidgetEnabled: try container.decodeIfPresent(Bool.self, forKey: .dateTimeWidgetEnabled) ?? defaults.dateTimeWidgetEnabled,
+                mediaControlsEnabled: try container.decodeIfPresent(Bool.self, forKey: .mediaControlsEnabled) ?? defaults.mediaControlsEnabled,
+                hideMediaSourceAppIcon: try container.decodeIfPresent(Bool.self, forKey: .hideMediaSourceAppIcon) ?? defaults.hideMediaSourceAppIcon
+            )
+        }
+
         self.hideSystemDock = try container.decodeIfPresent(Bool.self, forKey: .hideSystemDock) ?? defaults.hideSystemDock
         self.bottomRevealDelayMilliseconds =
             try container.decodeIfPresent(Int.self, forKey: .bottomRevealDelayMilliseconds) ?? defaults.bottomRevealDelayMilliseconds
         self.appearance = try container.decodeIfPresent(SidebarAppearance.self, forKey: .appearance) ?? defaults.appearance
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(edge, forKey: .edge)
+        try container.encode(iconSize, forKey: .iconSize)
+        try container.encode(spacing, forKey: .spacing)
+        try container.encode(opacity, forKey: .opacity)
+        try container.encode(autoHide, forKey: .autoHide)
+        try container.encode(showOnAllDisplays, forKey: .showOnAllDisplays)
+        try container.encode(stacksEnabled, forKey: .stacksEnabled)
+        try container.encode(secondClickEnabled, forKey: .secondClickEnabled)
+        try container.encode(windowSwitcherEnabled, forKey: .windowSwitcherEnabled)
+        try container.encode(windowPreviewsEnabled, forKey: .windowPreviewsEnabled)
+        try container.encode(folderPeekEnabled, forKey: .folderPeekEnabled)
+        try container.encode(widgetPreferences, forKey: .widgetPreferences)
+        try container.encode(trashWidgetEnabled, forKey: .trashWidgetEnabled)
+        try container.encode(dateTimeWidgetEnabled, forKey: .dateTimeWidgetEnabled)
+        try container.encode(mediaControlsEnabled, forKey: .mediaControlsEnabled)
+        try container.encode(hideMediaSourceAppIcon, forKey: .hideMediaSourceAppIcon)
+        try container.encode(hideSystemDock, forKey: .hideSystemDock)
+        try container.encode(bottomRevealDelayMilliseconds, forKey: .bottomRevealDelayMilliseconds)
+        try container.encode(appearance, forKey: .appearance)
+    }
+
+    private static func legacyWidgetPreferences(
+        trashWidgetEnabled: Bool,
+        dateTimeWidgetEnabled: Bool,
+        mediaControlsEnabled: Bool,
+        hideMediaSourceAppIcon: Bool
+    ) -> WidgetPreferences {
+        var widgetPreferences = WidgetPreferences.defaults()
+        widgetPreferences.setEnabled(trashWidgetEnabled, for: .trash)
+        widgetPreferences.setEnabled(dateTimeWidgetEnabled, for: .dateTime)
+        widgetPreferences.setEnabled(mediaControlsEnabled, for: .media)
+        widgetPreferences.setSetting(
+            .bool(hideMediaSourceAppIcon),
+            for: .media,
+            settingID: WidgetSettingIDs.hideMediaSourceAppIcon
+        )
+        return widgetPreferences
     }
 }

@@ -67,8 +67,7 @@ struct SidebarPanelView: View {
             dividerCount: dividerCount,
             iconSize: iconSize,
             spacing: spacing,
-            mediaControlCount: mediaControlCount,
-            mediaUsesInlineLength: !preferences.edge.isVertical
+            additionalItemLengths: finalWidgetLengths
         )
     }
 
@@ -76,16 +75,10 @@ struct SidebarPanelView: View {
         layoutSections.stacks.count
             + layoutSections.pinnedItems.count
             + appModel.visibleRunningApps.count
-            + finalControlsCount
-            - mediaControlCount
-    }
-
-    private var mediaControlCount: Int {
-        layoutSections.finalSystemItems.contains { $0.systemKind == .media } ? 1 : 0
     }
 
     private var finalControlsCount: Int {
-        layoutSections.finalSystemItems.count
+        layoutSections.finalWidgets.count
     }
 
     private var hasFinalControls: Bool {
@@ -100,17 +93,17 @@ struct SidebarPanelView: View {
         CGFloat(preferences.spacing)
     }
 
-    private var itemSide: CGFloat {
-        iconSize + 12
-    }
-
     private var finalControlsLength: CGFloat {
-        let itemLengths = layoutSections.finalSystemItems.reduce(CGFloat(0)) { partial, item in
-            partial + (item.systemKind == .media ? SidebarDockLayout.mediaControlLength(iconSize: iconSize) : itemSide)
-        }
+        let itemLengths = finalWidgetLengths.reduce(CGFloat(0), +)
         let itemCount = finalControlsCount
         let spacingLength = CGFloat(max(0, itemCount - 1)) * spacing
         return itemLengths + spacingLength
+    }
+
+    private var finalWidgetLengths: [CGFloat] {
+        layoutSections.finalWidgets.map {
+            SidebarDockLayout.widgetLength(for: $0, edge: preferences.edge, iconSize: iconSize)
+        }
     }
 
     private var scrollableHorizontalContentLength: CGFloat {
@@ -191,7 +184,7 @@ struct SidebarPanelView: View {
                     .zIndex(1)
             }
 
-            ForEach(layoutSections.finalSystemItems) { item in
+            ForEach(layoutSections.finalWidgets) { item in
                 SidebarItemView(
                     item: item,
                     appModel: appModel,
@@ -305,7 +298,7 @@ struct SidebarPanelView: View {
         if hasFinalControls {
             if preferences.edge.isVertical {
                 VStack(spacing: spacing) {
-                    ForEach(layoutSections.finalSystemItems) { item in
+                    ForEach(layoutSections.finalWidgets) { item in
                         SidebarItemView(
                             item: item,
                             appModel: appModel,
@@ -316,7 +309,7 @@ struct SidebarPanelView: View {
                 }
             } else {
                 HStack(spacing: spacing) {
-                    ForEach(layoutSections.finalSystemItems) { item in
+                    ForEach(layoutSections.finalWidgets) { item in
                         SidebarItemView(
                             item: item,
                             appModel: appModel,

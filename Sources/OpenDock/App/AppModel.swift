@@ -223,18 +223,20 @@ public final class AppModel: ObservableObject {
     }
 
     func openSystemItem(_ item: SidebarItem) {
-        switch item.systemKind {
-        case .windowSwitcher:
-            openWindowSwitcher()
-        case .trash:
-            TrashService.openTrash()
-        case .dateTime:
-            break
-        case .media:
-            openCurrentMediaApplication()
-        case nil:
-            break
+        guard let widgetID = item.widgetID,
+            let definition = WidgetRegistry.shared.definition(for: widgetID)
+        else {
+            return
         }
+
+        definition.performPrimaryAction(
+            context: WidgetContext(
+                item: item,
+                appModel: self,
+                iconSize: CGFloat(preferencesStore.preferences.iconSize),
+                edge: preferencesStore.preferences.edge
+            )
+        )
     }
 
     func openPinnedItem(_ item: PinnedItem) {
@@ -684,8 +686,8 @@ public final class AppModel: ObservableObject {
 
     private var shouldHideMediaSourceApplicationIcon: Bool {
         let preferences = preferencesStore.preferences
-        return preferences.mediaControlsEnabled
-            && preferences.hideMediaSourceAppIcon
+        return preferences.isWidgetEnabled(.media)
+            && preferences.boolWidgetSetting(WidgetSettingIDs.hideMediaSourceAppIcon, for: .media, default: true)
             && mediaPlaybackInfo != nil
     }
 

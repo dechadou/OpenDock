@@ -101,8 +101,17 @@ struct SidebarItemView: View {
 
     @ViewBuilder
     private var interactiveContent: some View {
-        if item.kind == .system, item.systemKind == .media {
-            MediaSidebarPill(iconSize: iconSize, edge: edge, appModel: appModel)
+        if let widgetDefinition {
+            if widgetDefinition.usesCustomDockInteraction {
+                widgetDefinition.makeDockView(context: widgetContext)
+            } else {
+                Button {
+                    widgetDefinition.performPrimaryAction(context: widgetContext)
+                } label: {
+                    widgetDefinition.makeDockView(context: widgetContext)
+                }
+                .buttonStyle(.plain)
+            }
         } else {
             Button {
                 handleClick()
@@ -115,11 +124,7 @@ struct SidebarItemView: View {
 
     @ViewBuilder
     private var itemLabel: some View {
-        if item.kind == .system, item.systemKind == .dateTime {
-            DateTimeSidebarIcon(iconSize: iconSize)
-        } else if item.kind == .system, item.systemKind == .trash {
-            TrashSidebarIcon(iconSize: iconSize)
-        } else if item.kind == .stack {
+        if item.kind == .stack {
             StackSidebarIcon(stack: item, iconSize: iconSize)
         } else {
             SidebarIconButtonLabel(
@@ -157,7 +162,11 @@ struct SidebarItemView: View {
                 appModel.removeSidebarItem(item)
             }
         case .system:
-            systemContextMenu
+            if let widgetDefinition {
+                widgetDefinition.makeContextMenu(context: widgetContext)
+            } else {
+                EmptyView()
+            }
         default:
             Button("Open") {
                 appModel.handleSidebarItemClick(item)
@@ -169,56 +178,30 @@ struct SidebarItemView: View {
         }
     }
 
-    @ViewBuilder
-    private var systemContextMenu: some View {
-        switch item.systemKind {
-        case .windowSwitcher:
-            Button("Open Window Switcher") {
-                appModel.openWindowSwitcher()
-            }
-            if !PermissionService.isAccessibilityTrusted {
-                Button("Enable Accessibility") {
-                    PermissionService.requestAccessibilityPrompt()
-                    PermissionService.openAccessibilitySettings()
-                }
-            }
-            if !PermissionService.isScreenRecordingTrusted {
-                Button("Enable Screen Recording") {
-                    PermissionService.openScreenRecordingSettings()
-                }
-            }
-        case .trash:
-            Button("Open Trash") {
-                TrashService.openTrash()
-            }
-            Button("Empty Trash") {
-                appModel.emptyTrashWithConfirmation()
-            }
-        case .dateTime:
-            Button("Open Calendar") {
-                setCalendarPresented(true)
-            }
-        case .media:
-            Button("Open \(appModel.mediaPlaybackInfo?.appName ?? "Media App")") {
-                appModel.openCurrentMediaApplication()
-            }
-            Divider()
-            Button("Previous") {
-                appModel.sendMediaCommand(.previous)
-            }
-            Button("Play/Pause") {
-                appModel.sendMediaCommand(.playPause)
-            }
-            Button("Next") {
-                appModel.sendMediaCommand(.next)
-            }
-        case nil:
-            EmptyView()
-        }
-    }
-
     private var itemRunningApp: RunningAppInfo? {
         appModel.runningApp(for: item)
+    }
+
+    private var widgetDefinition: (any WidgetDefinition)? {
+        guard item.kind == .system,
+            let widgetID = item.widgetID
+        else {
+            return nil
+        }
+
+        return WidgetRegistry.shared.definition(for: widgetID)
+    }
+
+    private var widgetContext: WidgetContext {
+        WidgetContext(
+            item: item,
+            appModel: appModel,
+            iconSize: iconSize,
+            edge: edge,
+            presentCalendar: {
+                setCalendarPresented(true)
+            }
+        )
     }
 
     private var arrowEdge: Edge {
@@ -243,8 +226,12 @@ struct SidebarItemView: View {
             } else {
                 appModel.handleSidebarItemClick(item)
             }
-        case .system where item.systemKind == .dateTime:
-            setCalendarPresented(true)
+        case .system:
+            if let widgetDefinition {
+                widgetDefinition.performPrimaryAction(context: widgetContext)
+            } else {
+                appModel.handleSidebarItemClick(item)
+            }
         default:
             appModel.handleSidebarItemClick(item)
         }
@@ -462,7 +449,7 @@ private struct StackSidebarIcon: View {
     }
 }
 
-private struct TrashSidebarIcon: View {
+struct TrashSidebarIcon: View {
     var iconSize: CGFloat
     @State private var isEmpty = TrashService.fastVisibleItemCount() == 0
     @State private var itemCount = TrashService.fastVisibleItemCount()

@@ -1,0 +1,14 @@
+{
+  "id": "windows",
+  "title": "Windows",
+  "description": "Show the window switcher and its hotkey behavior.",
+  "systemImage": "rectangle.on.rectangle",
+  "defaultEnabled": true,
+  "placement": "final",
+  "order": 10,
+  "dockSize": {
+    "vertical": { "type": "square" },
+    "horizontal": { "type": "square" }
+  },
+  "settings": []
+}

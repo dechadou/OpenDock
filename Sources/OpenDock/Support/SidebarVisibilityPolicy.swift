@@ -1,7 +1,11 @@
 import Foundation
 
 public enum SidebarVisibilityPolicy {
-    public static func shouldDisplay(_ item: SidebarItem, preferences: SidebarPreferences) -> Bool {
+    public static func shouldDisplay(
+        _ item: SidebarItem,
+        preferences: SidebarPreferences,
+        registry: WidgetRegistry = .shared
+    ) -> Bool {
         guard item.kind == .system else {
             if item.kind == .stack {
                 return preferences.stacksEnabled
@@ -10,17 +14,15 @@ public enum SidebarVisibilityPolicy {
             return true
         }
 
-        switch item.systemKind {
-        case .windowSwitcher:
-            return preferences.windowSwitcherEnabled
-        case .trash:
-            return preferences.trashWidgetEnabled
-        case .dateTime:
-            return preferences.dateTimeWidgetEnabled
-        case .media:
-            return preferences.mediaControlsEnabled
-        case nil:
+        guard let widgetID = item.widgetID else {
             return true
         }
+
+        if widgetID == .windows {
+            return preferences.windowSwitcherEnabled
+        }
+
+        let defaultEnabled = registry.manifest(for: widgetID)?.defaultEnabled ?? true
+        return preferences.widgetPreferences.isEnabled(widgetID, default: defaultEnabled)
     }
 }

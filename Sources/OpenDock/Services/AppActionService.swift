@@ -70,7 +70,13 @@ enum AppActionService {
         case .stack:
             return .openDockSymbol("square.stack.3d.up")
         case .system:
-            return .openDockSymbol(item.systemKind?.symbolName ?? "gear")
+            if let widgetID = item.widgetID,
+                let manifest = WidgetRegistry.shared.manifest(for: widgetID)
+            {
+                return .openDockSymbol(manifest.systemImage)
+            }
+
+            return .openDockSymbol("gear")
         }
     }
 

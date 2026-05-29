@@ -7,10 +7,11 @@ public final class SidebarItemStore: ObservableObject {
 
     private let fileURL: URL
     private let legacyPinnedItemsURL: URL
+    private let widgetRegistry: WidgetRegistry
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    public init(fileURL: URL? = nil, legacyPinnedItemsURL: URL? = nil) {
+    public init(fileURL: URL? = nil, legacyPinnedItemsURL: URL? = nil, widgetRegistry: WidgetRegistry = .shared) {
         let supportDirectory = try? FileSystemLocations.applicationSupportDirectory()
         self.fileURL =
             fileURL
@@ -20,6 +21,7 @@ public final class SidebarItemStore: ObservableObject {
             legacyPinnedItemsURL
             ?? supportDirectory?.appendingPathComponent("PinnedItems.json")
             ?? URL(fileURLWithPath: "/tmp/\(AppIdentity.displayName)-PinnedItems.json")
+        self.widgetRegistry = widgetRegistry
 
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         load()
@@ -30,13 +32,13 @@ public final class SidebarItemStore: ObservableObject {
             let loaded = try? decoder.decode([SidebarItem].self, from: Data(contentsOf: fileURL))
         {
             items = loaded
-            ensureDefaultSystemItems()
+            ensureDefaultWidgets()
             save()
             return
         }
 
         migrateLegacyPinnedItems()
-        ensureDefaultSystemItems()
+        ensureDefaultWidgets()
         save()
     }
 
@@ -240,14 +242,14 @@ public final class SidebarItemStore: ObservableObject {
         items = pinnedItems.map(SidebarItem.fromPinnedItem)
     }
 
-    private func ensureDefaultSystemItems() {
-        for kind in SidebarItem.SystemKind.allCases where !containsSystemItem(kind) {
-            items.append(.system(kind))
+    private func ensureDefaultWidgets() {
+        for manifest in widgetRegistry.defaultManifests where !containsWidget(manifest.id) {
+            items.append(.widget(manifest.id))
         }
     }
 
-    private func containsSystemItem(_ kind: SidebarItem.SystemKind) -> Bool {
-        items.contains { $0.kind == .system && $0.systemKind == kind }
+    private func containsWidget(_ widgetID: WidgetID) -> Bool {
+        items.contains { $0.kind == .system && $0.widgetID == widgetID }
     }
 
     private static func canBeStackChild(_ item: SidebarItem) -> Bool {
@@ -293,7 +295,7 @@ public final class SidebarItemStore: ObservableObject {
 
     private func isDuplicate(_ lhs: SidebarItem, _ rhs: SidebarItem) -> Bool {
         if lhs.kind == .system || rhs.kind == .system {
-            return lhs.systemKind == rhs.systemKind
+            return lhs.widgetID == rhs.widgetID
         }
 
         if let lhsBundle = lhs.bundleIdentifier,

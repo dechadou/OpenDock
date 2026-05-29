@@ -1,0 +1,14 @@
+{
+  "id": "date-time",
+  "title": "Date & Time",
+  "description": "Show calendar and date controls.",
+  "systemImage": "calendar",
+  "defaultEnabled": true,
+  "placement": "final",
+  "order": 20,
+  "dockSize": {
+    "vertical": { "type": "square" },
+    "horizontal": { "type": "square" }
+  },
+  "settings": []
+}

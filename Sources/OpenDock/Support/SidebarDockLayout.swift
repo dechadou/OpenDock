@@ -5,25 +5,18 @@ public enum SidebarDockLayout {
     public struct Sections: Equatable, Sendable {
         public var stacks: [SidebarItem]
         public var pinnedItems: [SidebarItem]
-        public var finalSystemItems: [SidebarItem]
+        public var finalWidgets: [SidebarItem]
 
         public var hasUserItems: Bool {
             !stacks.isEmpty || !pinnedItems.isEmpty
         }
     }
 
-    public static let finalSystemItemOrder: [SidebarItem.SystemKind] = [
-        .windowSwitcher,
-        .dateTime,
-        .media,
-        .trash,
-    ]
-
-    public static func sections(from items: [SidebarItem]) -> Sections {
+    public static func sections(from items: [SidebarItem], registry: WidgetRegistry = .shared) -> Sections {
         Sections(
             stacks: items.filter { $0.kind == .stack },
             pinnedItems: items.filter(isPinnedItem),
-            finalSystemItems: finalSystemItems(from: items)
+            finalWidgets: finalWidgets(from: items, registry: registry)
         )
     }
 
@@ -40,26 +33,36 @@ public enum SidebarDockLayout {
         dividerCount: Int,
         iconSize: CGFloat,
         spacing: CGFloat,
-        mediaControlCount: Int = 0,
-        mediaUsesInlineLength: Bool = false,
+        additionalItemLengths: [CGFloat] = [],
         contentPadding: CGFloat = 10
     ) -> CGFloat {
-        let totalItemCount = itemCount + mediaControlCount
+        let totalItemCount = itemCount + additionalItemLengths.count
         guard totalItemCount > 0 else {
             return contentPadding * 2
         }
 
         let itemSide = iconSize + 12
         let itemLength = CGFloat(itemCount) * itemSide
-        let mediaLength = CGFloat(mediaControlCount) * (mediaUsesInlineLength ? mediaControlLength(iconSize: iconSize) : itemSide)
+        let additionalLength = additionalItemLengths.reduce(CGFloat(0), +)
         let elementCount = totalItemCount + dividerCount
         let spacingLength = CGFloat(max(0, elementCount - 1)) * spacing
         let dividerLength = CGFloat(dividerCount) * dividerRuleLength
-        return itemLength + mediaLength + spacingLength + dividerLength + (contentPadding * 2)
+        return itemLength + additionalLength + spacingLength + dividerLength + (contentPadding * 2)
     }
 
-    public static func mediaControlLength(iconSize: CGFloat) -> CGFloat {
-        max(290, iconSize * 5.5)
+    public static func widgetLength(
+        for item: SidebarItem,
+        edge: SidebarEdge,
+        iconSize: CGFloat,
+        registry: WidgetRegistry = .shared
+    ) -> CGFloat {
+        guard let widgetID = item.widgetID,
+            let manifest = registry.manifest(for: widgetID)
+        else {
+            return iconSize + 12
+        }
+
+        return manifest.dockSize.length(edge: edge, iconSize: iconSize)
     }
 
     public static func sectionDividerLength(spacing: CGFloat) -> CGFloat {
@@ -77,13 +80,35 @@ public enum SidebarDockLayout {
         }
     }
 
-    private static func finalSystemItems(from items: [SidebarItem]) -> [SidebarItem] {
-        finalSystemItemOrder.compactMap { systemKind in
-            items.first { $0.kind == .system && $0.systemKind == systemKind }
-        }
+    private static func finalWidgets(from items: [SidebarItem], registry: WidgetRegistry) -> [SidebarItem] {
+        items
+            .enumerated()
+            .filter { _, item in
+                guard item.kind == .system,
+                    let widgetID = item.widgetID,
+                    registry.manifest(for: widgetID)?.placement == .final
+                else {
+                    return false
+                }
+
+                return true
+            }
+            .sorted { lhs, rhs in
+                let lhsManifest = lhs.element.widgetID.flatMap { registry.manifest(for: $0) }
+                let rhsManifest = rhs.element.widgetID.flatMap { registry.manifest(for: $0) }
+                let lhsOrder = lhsManifest?.order ?? Int.max
+                let rhsOrder = rhsManifest?.order ?? Int.max
+
+                if lhsOrder == rhsOrder {
+                    return lhs.offset < rhs.offset
+                }
+
+                return lhsOrder < rhsOrder
+            }
+            .map(\.element)
     }
 
     private static func isTrash(_ item: SidebarItem) -> Bool {
-        item.kind == .system && item.systemKind == .trash
+        item.kind == .system && item.widgetID == .trash
     }
 }

@@ -1,0 +1,14 @@
+{
+  "id": "trash",
+  "title": "Trash",
+  "description": "Show Trash status at the end of the dock.",
+  "systemImage": "trash",
+  "defaultEnabled": true,
+  "placement": "final",
+  "order": 40,
+  "dockSize": {
+    "vertical": { "type": "square" },
+    "horizontal": { "type": "square" }
+  },
+  "settings": []
+}
