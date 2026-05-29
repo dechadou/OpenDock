@@ -10,7 +10,7 @@ Download the latest beta from the
 [OpenDock releases page](https://github.com/dechadou/OpenDock/releases).
 
 Current beta:
-[v.0.0.1-beta](https://github.com/dechadou/OpenDock/releases/tag/v.0.0.1-beta)
+[v.0.0.2-beta](https://github.com/dechadou/OpenDock/releases/tag/v.0.0.2-beta)
 
 ### Requirements
 
@@ -19,7 +19,7 @@ Current beta:
 
 ### Install
 
-1. Download `OpenDock-v.0.0.1-beta-macos.zip` from the release page.
+1. Download `OpenDock-v.0.0.2-beta-macos.zip` from the release page.
 2. Unzip it.
 3. Move `OpenDock.app` to `/Applications`.
 4. Open the app.

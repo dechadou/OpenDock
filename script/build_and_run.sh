@@ -4,31 +4,41 @@ set -euo pipefail
 MODE="${1:-run}"
 APP_NAME="OpenDock"
 BUNDLE_ID="app.opendock"
+APP_VERSION="0.0.2"
+APP_BUILD="2"
 MIN_SYSTEM_VERSION="26.5"
 SIGN_IDENTITY="${OPENDOCK_SIGN_IDENTITY:-OpenDock Dev}"
+BUILD_CONFIGURATION="${OPENDOCK_BUILD_CONFIGURATION:-debug}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
+APP_RESOURCES="$APP_CONTENTS/Resources"
 APP_BINARY="$APP_MACOS/$APP_NAME"
 RESTORER_NAME="OpenDockDockRestorer"
 RESTORER_BINARY="$APP_MACOS/$RESTORER_NAME"
+RESOURCE_BUNDLE_NAME="OpenDock_OpenDockCore.bundle"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 cd "$ROOT_DIR"
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
-swift build
-BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
-BUILD_RESTORER="$(swift build --show-bin-path)/$RESTORER_NAME"
+swift build -c "$BUILD_CONFIGURATION"
+BUILD_DIR="$(swift build -c "$BUILD_CONFIGURATION" --show-bin-path)"
+BUILD_BINARY="$BUILD_DIR/$APP_NAME"
+BUILD_RESTORER="$BUILD_DIR/$RESTORER_NAME"
+BUILD_RESOURCE_BUNDLE="$BUILD_DIR/$RESOURCE_BUNDLE_NAME"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_MACOS"
+mkdir -p "$APP_MACOS" "$APP_RESOURCES"
 cp "$BUILD_BINARY" "$APP_BINARY"
 cp "$BUILD_RESTORER" "$RESTORER_BINARY"
+if [[ -d "$BUILD_RESOURCE_BUNDLE" ]]; then
+  cp -R "$BUILD_RESOURCE_BUNDLE" "$APP_RESOURCES/$RESOURCE_BUNDLE_NAME"
+fi
 chmod +x "$APP_BINARY"
 chmod +x "$RESTORER_BINARY"
 
@@ -45,6 +55,10 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$BUNDLE_ID</string>
   <key>CFBundleName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$APP_BUILD</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
@@ -61,11 +75,16 @@ PLIST
 
 sign_app() {
   if has_signing_identity "$SIGN_IDENTITY"; then
-    codesign --force --sign "$SIGN_IDENTITY" "$RESTORER_BINARY"
-    codesign --force --identifier "$BUNDLE_ID" --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
+    sign_with "$SIGN_IDENTITY"
   else
     echo "warning: '$SIGN_IDENTITY' not found; using ad-hoc signing. Accessibility resets on rebuild (see README)." >&2
+    sign_with -
   fi
+}
+
+sign_with() {
+  local identity="$1"
+  codesign --force --identifier "$BUNDLE_ID" --deep --sign "$identity" "$APP_BUNDLE"
 }
 
 has_signing_identity() {

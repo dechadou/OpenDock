@@ -471,7 +471,7 @@ public enum WidgetManifestLoader {
     }
 
     public static func bundledManifest(id: WidgetID) throws -> WidgetManifest {
-        try bundledManifest(id: id, bundle: .module)
+        try bundledManifest(id: id, bundle: defaultResourceBundle)
     }
 
     public static func bundledManifest(id: WidgetID, bundle: Bundle) throws -> WidgetManifest {
@@ -487,6 +487,17 @@ public enum WidgetManifestLoader {
 
         let data = try Data(contentsOf: url)
         return try JSONDecoder().decode(WidgetManifest.self, from: data)
+    }
+
+    private static var defaultResourceBundle: Bundle {
+        let bundleName = "OpenDock_OpenDockCore.bundle"
+        let candidates = [
+            Bundle.main.resourceURL?.appendingPathComponent(bundleName),
+            Bundle.main.bundleURL.appendingPathComponent(bundleName),
+            Bundle.module.bundleURL,
+        ]
+
+        return candidates.compactMap { $0 }.compactMap(Bundle.init(url:)).first ?? .module
     }
 
     public static func requireBundledManifest(id: WidgetID) -> WidgetManifest {
