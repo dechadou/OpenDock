@@ -12,6 +12,7 @@ struct RunningAppSidebarItemView: View {
     @State private var closeTask: DispatchWorkItem?
     @State private var isIconHovered = false
     @State private var isPreviewHovered = false
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         SidebarIconButton(
@@ -57,6 +58,7 @@ struct RunningAppSidebarItemView: View {
                 width: WindowPreviewView.preferredSize.width,
                 height: WindowPreviewView.preferredSize.height
             )
+            .environment(\.sidebarAppearance, appearance)
         }
         .onDrag {
             if let bundleURL = app.bundleURL {
@@ -73,10 +75,7 @@ struct RunningAppSidebarItemView: View {
                 menuProvider: {
                     AppContextMenuFactory.runningAppMenu(
                         app: app,
-                        appModel: appModel,
-                        previewWindows: {
-                            presentWindowPreviewImmediately()
-                        }
+                        appModel: appModel
                     )
                 },
                 onMenuVisibilityChanged: { visible in
@@ -135,13 +134,6 @@ struct RunningAppSidebarItemView: View {
     private func setPreviewPresented(_ presented: Bool) {
         isPreviewPresented = presented
         appModel.setSidebarInteractionSurface("preview-\(app.id)", visible: presented)
-    }
-
-    private func presentWindowPreviewImmediately() {
-        closeTask?.cancel()
-        previewTask?.cancel()
-        appModel.windowService.refresh()
-        setPreviewPresented(true)
     }
 
     private func dismissWindowPreview() {

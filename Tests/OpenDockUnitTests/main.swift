@@ -20,9 +20,57 @@ struct OpenDockUnitTestRunner {
                 }
             ),
             (
+                "preferences default edge bottom",
+                {
+                    try testPreferencesDefaultEdgeBottom()
+                }
+            ),
+            (
                 "preferences decode dock setting default",
                 {
                     try testPreferencesDecodeDockSettingDefault()
+                }
+            ),
+            (
+                "preferences decode appearance default",
+                {
+                    try testPreferencesDecodeAppearanceDefault()
+                }
+            ),
+            (
+                "preferences appearance round trip",
+                {
+                    try testPreferencesAppearanceRoundTrip()
+                }
+            ),
+            (
+                "appearance token metadata",
+                {
+                    try testAppearanceTokenMetadata()
+                }
+            ),
+            (
+                "appearance tokens reset",
+                {
+                    try testAppearanceTokensReset()
+                }
+            ),
+            (
+                "theme presets",
+                {
+                    try testThemePresets()
+                }
+            ),
+            (
+                "theme custom detection",
+                {
+                    try testThemeCustomDetection()
+                }
+            ),
+            (
+                "preference debouncer coalesces",
+                {
+                    try testPreferenceDebouncerCoalesces()
                 }
             ),
             (
@@ -190,6 +238,12 @@ struct OpenDockUnitTestRunner {
                 }
             ),
             (
+                "menu bar action model",
+                {
+                    try testMenuBarActionModel()
+                }
+            ),
+            (
                 "window move geometry",
                 {
                     try testWindowMoveGeometry()
@@ -254,12 +308,138 @@ struct OpenDockUnitTestRunner {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
+    private static func testPreferencesDefaultEdgeBottom() throws {
+        try expect(SidebarPreferences.defaults.edge == .bottom, "expected default dock edge to be bottom")
+    }
+
     private static func testPreferencesDecodeDockSettingDefault() throws {
         let data = #"{"edge":"right"}"#.data(using: .utf8)!
         let preferences = try JSONDecoder().decode(SidebarPreferences.self, from: data)
 
         try expect(preferences.edge == .right, "expected decoded edge")
         try expect(!preferences.hideSystemDock, "expected hideSystemDock to default to false")
+    }
+
+    private static func testPreferencesDecodeAppearanceDefault() throws {
+        let data = #"{"edge":"left"}"#.data(using: .utf8)!
+        let preferences = try JSONDecoder().decode(SidebarPreferences.self, from: data)
+
+        try expect(preferences.appearance == .defaults, "expected appearance to default for old preference data")
+    }
+
+    private static func testPreferencesAppearanceRoundTrip() throws {
+        var preferences = SidebarPreferences.defaults
+        preferences.appearance.badgeBackground = SidebarRGBAColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 0.35)
+        preferences.appearance.popoverSurface = SidebarRGBAColor(red: 0.8, green: 0.7, blue: 0.1, alpha: 0.5)
+
+        let encoded = try JSONEncoder().encode(preferences)
+        let decoded = try JSONDecoder().decode(SidebarPreferences.self, from: encoded)
+
+        try expect(decoded.appearance == preferences.appearance, "expected appearance to round trip")
+    }
+
+    private static func testAppearanceTokenMetadata() throws {
+        let tokens = SidebarAppearanceTokenID.allCases
+        let ids = tokens.map(\.id)
+
+        try expect(Set(ids).count == ids.count, "expected unique appearance token ids")
+        try expect(ids.count == 18, "expected all appearance tokens to be exposed")
+        try expect(
+            tokens.allSatisfy { !$0.title.isEmpty && !$0.affectedArea.isEmpty },
+            "expected every appearance token to explain its affected UI area"
+        )
+        try expect(
+            SidebarAppearanceTokenGroup.allCases.allSatisfy { group in
+                tokens.contains { $0.group == group }
+            },
+            "expected every appearance group to contain editable tokens"
+        )
+    }
+
+    private static func testAppearanceTokensReset() throws {
+        var appearance = SidebarAppearance.defaults
+
+        appearance[token: .badgeBackground] = .rgba(1, 2, 3, alpha: 0.5)
+        try expect(
+            appearance[token: .badgeBackground] != SidebarAppearance.defaults[token: .badgeBackground],
+            "expected edited token to differ from default"
+        )
+
+        appearance.reset(.badgeBackground)
+        try expect(
+            appearance[token: .badgeBackground] == SidebarAppearance.defaults[token: .badgeBackground],
+            "expected token reset to restore default color"
+        )
+
+        appearance[token: .dockSurface] = .rgba(4, 5, 6, alpha: 0.5)
+        appearance[token: .calendarHighlight] = .rgba(7, 8, 9, alpha: 0.6)
+        appearance.resetAll()
+        try expect(appearance == .defaults, "expected reset all to restore default appearance")
+    }
+
+    private static func testThemePresets() throws {
+        let expectedIDs: Set<String> = [
+            SidebarThemePresets.defaultID,
+            "dracula",
+            "catppuccin-mocha",
+            "nord",
+            "gruvbox-dark",
+            "tokyo-night",
+            "rose-pine",
+            "solarized-dark",
+            "everforest-dark",
+            "github-dark",
+        ]
+        let ids = Set(SidebarThemePresets.all.map(\.id))
+
+        try expect(ids == expectedIDs, "expected curated theme preset ids")
+        try expect(ids.count == SidebarThemePresets.all.count, "expected unique theme preset ids")
+        try expect(
+            SidebarThemePresets.all.allSatisfy { preset in
+                preset.appearance.isComplete && !preset.swatches.isEmpty && !preset.description.isEmpty
+            },
+            "expected every theme preset to produce a complete appearance with preview swatches"
+        )
+
+        let dracula = try unwrap(SidebarThemePresets.preset(id: "dracula"), "expected Dracula preset")
+        try expect(
+            SidebarThemePresets.matchingPresetID(for: dracula.appearance) == "dracula",
+            "expected exact preset appearance to identify matching theme"
+        )
+    }
+
+    private static func testThemeCustomDetection() throws {
+        let dracula = try unwrap(SidebarThemePresets.preset(id: "dracula"), "expected Dracula preset")
+        var custom = dracula.appearance
+
+        custom[token: .badgeBackground] = .rgba(1, 2, 3, alpha: 0.7)
+
+        try expect(
+            SidebarThemePresets.matchingPresetID(for: custom) == nil,
+            "expected editing a preset-derived color to mark appearance as custom"
+        )
+    }
+
+    private static func testPreferenceDebouncerCoalesces() throws {
+        let debouncer = PreferenceDebouncer(delay: 10)
+        var committed = 0
+
+        debouncer.schedule(id: "iconSize") {
+            committed = 1
+        }
+        debouncer.schedule(id: "iconSize") {
+            committed = 2
+        }
+
+        try expect(debouncer.pendingIDs == Set(["iconSize"]), "expected pending slider write to coalesce by id")
+        try expect(committed == 0, "expected debounced writes to wait before committing")
+
+        debouncer.flush(id: "iconSize") {
+            committed = 3
+        }
+
+        try expect(committed == 3, "expected flush to commit final slider value")
+        try expect(debouncer.pendingIDs.isEmpty, "expected flush to clear pending slider write")
     }
 
     private static func testPreferencesDecodeBottomRevealDelayDefault() throws {
@@ -697,6 +877,13 @@ struct OpenDockUnitTestRunner {
         try expect(delayDiff.requiresVisibilityUpdate, "expected bottom reveal delay to update visibility behavior")
         try expect(!delayDiff.requiresRebuild, "expected bottom reveal delay to avoid rebuild")
         try expect(!delayDiff.requiresFrameUpdate, "expected bottom reveal delay to avoid frame update")
+
+        var themed = defaults
+        themed.appearance.badgeBackground = SidebarRGBAColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
+        let themeDiff = PanelPreferenceDiff(oldValue: defaults, newValue: themed)
+        try expect(!themeDiff.requiresRebuild, "expected appearance to avoid rebuild")
+        try expect(!themeDiff.requiresFrameUpdate, "expected appearance to avoid frame update")
+        try expect(!themeDiff.requiresOpacityUpdate, "expected appearance to avoid panel opacity update")
     }
 
     private static func testPanelRevealPolicyBottomEdge() throws {
@@ -826,6 +1013,16 @@ struct OpenDockUnitTestRunner {
     }
 
     private static func testAppContextMenuModel() throws {
+        let runningAppTitles = AppContextMenuModel.runningAppMenuTitles(hasStacks: true, hasMoveTo: true)
+        try expect(runningAppTitles.first == AppContextMenuModel.bringToFrontTitle, "expected running app action title")
+        try expect(
+            !runningAppTitles.contains(AppContextMenuModel.previewWindowsTitle),
+            "expected dock running app menu model to exclude preview windows"
+        )
+        try expect(
+            !runningAppTitles.contains(AppContextMenuModel.revealInFinderTitle),
+            "expected dock running app menu model to exclude reveal in finder"
+        )
         try expect(
             AppContextMenuModel.moveToItemTitles(displayNames: ["Built-in", "Studio"], accessibilityTrusted: true) == ["Built-in", "Studio"],
             "expected display move entries"
@@ -837,6 +1034,27 @@ struct OpenDockUnitTestRunner {
         try expect(
             AppContextMenuModel.moveToItemTitles(displayNames: ["Built-in"], accessibilityTrusted: true).isEmpty,
             "expected no move menu for one display"
+        )
+    }
+
+    private static func testMenuBarActionModel() throws {
+        let flattenedActions = MenuBarActionModel.topLevelGroups.flatMap { $0 }
+
+        try expect(flattenedActions.contains("Show/Hide Dock"), "expected dock visibility action")
+        try expect(flattenedActions.contains("Open Launcher"), "expected launcher action")
+        try expect(flattenedActions.contains("Open Windows"), "expected windows action")
+        try expect(flattenedActions.contains("New Stack"), "expected stack creation action")
+        try expect(flattenedActions.contains("Settings"), "expected settings action")
+        try expect(flattenedActions.contains("About OpenDock"), "expected about action")
+        try expect(flattenedActions.contains("GitHub Profile"), "expected GitHub profile action")
+        try expect(flattenedActions.contains("Open Repository"), "expected repository action")
+        try expect(
+            MenuBarActionModel.githubProfileURL.absoluteString == "https://github.com/dechadou",
+            "expected verified GitHub profile URL"
+        )
+        try expect(
+            MenuBarActionModel.githubRepositoryURL.absoluteString == "https://github.com/dechadou/OpenDock",
+            "expected verified repository URL"
         )
     }
 

@@ -18,6 +18,7 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
     public var hideMediaSourceAppIcon: Bool
     public var hideSystemDock: Bool
     public var bottomRevealDelayMilliseconds: Int
+    public var appearance: SidebarAppearance
 
     private enum CodingKeys: String, CodingKey {
         case edge
@@ -37,10 +38,11 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         case hideMediaSourceAppIcon
         case hideSystemDock
         case bottomRevealDelayMilliseconds
+        case appearance
     }
 
     public static let defaults = SidebarPreferences(
-        edge: .left,
+        edge: .bottom,
         iconSize: 34,
         spacing: 8,
         opacity: 0.96,
@@ -56,7 +58,8 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         mediaControlsEnabled: true,
         hideMediaSourceAppIcon: true,
         hideSystemDock: false,
-        bottomRevealDelayMilliseconds: 30
+        bottomRevealDelayMilliseconds: 30,
+        appearance: .defaults
     )
 
     public init(
@@ -76,7 +79,8 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         mediaControlsEnabled: Bool = true,
         hideMediaSourceAppIcon: Bool = true,
         hideSystemDock: Bool = false,
-        bottomRevealDelayMilliseconds: Int = 30
+        bottomRevealDelayMilliseconds: Int = 30,
+        appearance: SidebarAppearance = .defaults
     ) {
         self.edge = edge
         self.iconSize = iconSize
@@ -95,6 +99,7 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         self.hideMediaSourceAppIcon = hideMediaSourceAppIcon
         self.hideSystemDock = hideSystemDock
         self.bottomRevealDelayMilliseconds = bottomRevealDelayMilliseconds
+        self.appearance = appearance
     }
 
     public var panelThickness: Double {
@@ -124,5 +129,6 @@ public struct SidebarPreferences: Codable, Equatable, Sendable {
         self.hideSystemDock = try container.decodeIfPresent(Bool.self, forKey: .hideSystemDock) ?? defaults.hideSystemDock
         self.bottomRevealDelayMilliseconds =
             try container.decodeIfPresent(Int.self, forKey: .bottomRevealDelayMilliseconds) ?? defaults.bottomRevealDelayMilliseconds
+        self.appearance = try container.decodeIfPresent(SidebarAppearance.self, forKey: .appearance) ?? defaults.appearance
     }
 }

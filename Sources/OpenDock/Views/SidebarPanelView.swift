@@ -36,10 +36,12 @@ struct SidebarPanelView: View {
         .popover(isPresented: $appModel.isLauncherPresented, arrowEdge: launcherArrowEdge) {
             LauncherView(appModel: appModel)
                 .frame(width: 430, height: 520)
+                .environment(\.sidebarAppearance, preferences.appearance)
         }
         .popover(isPresented: $appModel.isWindowSwitcherPresented, arrowEdge: launcherArrowEdge) {
             WindowSwitcherView(appModel: appModel)
                 .frame(width: 620, height: 520)
+                .environment(\.sidebarAppearance, preferences.appearance)
         }
     }
 
@@ -83,7 +85,7 @@ struct SidebarPanelView: View {
     }
 
     private var finalControlsCount: Int {
-        (preferences.stacksEnabled ? 1 : 0) + layoutSections.finalSystemItems.count
+        layoutSections.finalSystemItems.count
     }
 
     private var hasFinalControls: Bool {
@@ -103,7 +105,7 @@ struct SidebarPanelView: View {
     }
 
     private var finalControlsLength: CGFloat {
-        let itemLengths = layoutSections.finalSystemItems.reduce(CGFloat(preferences.stacksEnabled ? itemSide : 0)) { partial, item in
+        let itemLengths = layoutSections.finalSystemItems.reduce(CGFloat(0)) { partial, item in
             partial + (item.systemKind == .media ? SidebarDockLayout.mediaControlLength(iconSize: iconSize) : itemSide)
         }
         let itemCount = finalControlsCount
@@ -189,18 +191,6 @@ struct SidebarPanelView: View {
                     .zIndex(1)
             }
 
-            if preferences.stacksEnabled {
-                SidebarIconButton(
-                    title: "New Stack",
-                    icon: .openDockSymbol("plus.rectangle.on.folder"),
-                    iconSize: iconSize
-                ) {
-                    appModel.createStack()
-                }
-                .layoutPriority(1)
-                .zIndex(2)
-            }
-
             ForEach(layoutSections.finalSystemItems) { item in
                 SidebarItemView(
                     item: item,
@@ -222,16 +212,32 @@ struct SidebarPanelView: View {
     }
 
     private func dockSurface<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        GlassEffectContainer(spacing: spacing) {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+
+        return GlassEffectContainer(spacing: spacing) {
             content()
+                .background(preferences.appearance.dockSurface.color, in: shape)
                 .glassEffect(
                     .regular.interactive(),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    in: shape
                 )
         }
         .padding(4)
+        .contextMenu {
+            dockContextMenu
+        }
         .onDrop(of: dropTypes, isTargeted: nil) { providers in
             appModel.handlePinnedItemDrop(providers, before: nil)
+        }
+        .environment(\.sidebarAppearance, preferences.appearance)
+    }
+
+    @ViewBuilder
+    private var dockContextMenu: some View {
+        if preferences.stacksEnabled {
+            Button("New Stack") {
+                appModel.createStack()
+            }
         }
     }
 
@@ -299,15 +305,6 @@ struct SidebarPanelView: View {
         if hasFinalControls {
             if preferences.edge.isVertical {
                 VStack(spacing: spacing) {
-                    if preferences.stacksEnabled {
-                        SidebarIconButton(
-                            title: "New Stack",
-                            icon: .openDockSymbol("plus.rectangle.on.folder"),
-                            iconSize: iconSize
-                        ) {
-                            appModel.createStack()
-                        }
-                    }
                     ForEach(layoutSections.finalSystemItems) { item in
                         SidebarItemView(
                             item: item,
@@ -319,15 +316,6 @@ struct SidebarPanelView: View {
                 }
             } else {
                 HStack(spacing: spacing) {
-                    if preferences.stacksEnabled {
-                        SidebarIconButton(
-                            title: "New Stack",
-                            icon: .openDockSymbol("plus.rectangle.on.folder"),
-                            iconSize: iconSize
-                        ) {
-                            appModel.createStack()
-                        }
-                    }
                     ForEach(layoutSections.finalSystemItems) { item in
                         SidebarItemView(
                             item: item,
@@ -343,6 +331,7 @@ struct SidebarPanelView: View {
 
     private var sectionDivider: some View {
         Divider()
+            .overlay(preferences.appearance.separator.color)
             .frame(
                 width: preferences.edge.isVertical ? nil : 1,
                 height: preferences.edge.isVertical ? 1 : CGFloat(preferences.panelThickness - 28)

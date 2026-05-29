@@ -16,6 +16,7 @@ struct SidebarItemView: View {
     @State private var closeTask: DispatchWorkItem?
     @State private var isIconHovered = false
     @State private var isPreviewHovered = false
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         interactiveContent
@@ -52,16 +53,19 @@ struct SidebarItemView: View {
             .popover(isPresented: stackBinding, arrowEdge: arrowEdge) {
                 StackPopoverView(stack: item, appModel: appModel, iconSize: iconSize)
                     .frame(width: 360, height: 320)
+                    .environment(\.sidebarAppearance, appearance)
             }
             .popover(isPresented: folderBinding, arrowEdge: arrowEdge) {
                 if let url = item.url {
                     FolderPeekView(folderURL: url, appModel: appModel)
                         .frame(width: 360, height: 420)
+                        .environment(\.sidebarAppearance, appearance)
                 }
             }
             .popover(isPresented: calendarBinding, arrowEdge: arrowEdge) {
                 CalendarPopoverView()
                     .frame(width: 320, height: 300)
+                    .environment(\.sidebarAppearance, appearance)
             }
             .popover(isPresented: previewBinding, arrowEdge: arrowEdge) {
                 if let runningApp = itemRunningApp {
@@ -84,6 +88,7 @@ struct SidebarItemView: View {
                         width: WindowPreviewView.preferredSize.width,
                         height: WindowPreviewView.preferredSize.height
                     )
+                    .environment(\.sidebarAppearance, appearance)
                 }
             }
             .onDisappear {
@@ -146,9 +151,6 @@ struct SidebarItemView: View {
                 Button("Open in Finder") {
                     NSWorkspace.shared.open(url)
                 }
-                Button("Reveal in Finder") {
-                    AppActionService.revealInFinder(url)
-                }
             }
             Divider()
             Button("Remove Pin") {
@@ -159,11 +161,6 @@ struct SidebarItemView: View {
         default:
             Button("Open") {
                 appModel.handleSidebarItemClick(item)
-            }
-            if let url = item.url, url.isFileURL {
-                Button("Reveal in Finder") {
-                    AppActionService.revealInFinder(url)
-                }
             }
             Divider()
             Button("Remove Pin") {
@@ -378,17 +375,18 @@ struct SidebarIconButtonLabel: View {
     var isRunning: Bool = false
     var isFrontmost: Bool = false
     var badgeText: String?
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         ZStack {
             if isFrontmost {
                 RoundedRectangle(cornerRadius: highlightCornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.18))
+                    .fill(appearance.activeIconFill.color)
                     .overlay(
                         RoundedRectangle(cornerRadius: highlightCornerRadius, style: .continuous)
-                            .stroke(Color.white.opacity(0.45), lineWidth: 1.4)
+                            .stroke(appearance.activeIconBorder.color, lineWidth: 1.4)
                     )
-                    .shadow(color: Color.white.opacity(0.16), radius: 4)
+                    .shadow(color: appearance.activeIconGlow.color, radius: 4)
                     .frame(width: highlightSize, height: highlightSize)
             }
 
@@ -401,7 +399,7 @@ struct SidebarIconButtonLabel: View {
         .overlay(alignment: .bottom) {
             if isRunning && !isFrontmost {
                 Capsule()
-                    .fill(Color.primary.opacity(0.4))
+                    .fill(appearance.runningIndicator.color)
                     .frame(width: runningDotWidth, height: runningDotHeight)
                     .offset(y: -1)
             }
@@ -435,11 +433,13 @@ struct SidebarIconButtonLabel: View {
 private struct StackSidebarIcon: View {
     var stack: SidebarItem
     var iconSize: CGFloat
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 10)
-                .fill(.quaternary)
+                .fill(appearance.widgetBackground.color)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.widgetBorder.color, lineWidth: 1))
                 .frame(width: iconSize + 6, height: iconSize + 6)
 
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(iconSize / 2.7), spacing: 2), count: 2), spacing: 2) {
@@ -454,7 +454,7 @@ private struct StackSidebarIcon: View {
             if stack.children.isEmpty {
                 Image(systemName: "square.stack.3d.up")
                     .font(.system(size: iconSize * 0.58))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
             }
         }
         .frame(width: iconSize + 12, height: iconSize + 12)
@@ -466,6 +466,7 @@ private struct TrashSidebarIcon: View {
     var iconSize: CGFloat
     @State private var isEmpty = TrashService.fastVisibleItemCount() == 0
     @State private var itemCount = TrashService.fastVisibleItemCount()
+    @Environment(\.sidebarAppearance) private var appearance
 
     private let timer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
 
@@ -474,18 +475,18 @@ private struct TrashSidebarIcon: View {
             Image(systemName: isEmpty ? "trash" : "trash.fill")
                 .font(.system(size: iconSize * 0.72, weight: .regular))
                 .symbolRenderingMode(.monochrome)
-                .foregroundStyle(.primary)
+                .foregroundStyle(appearance.primaryText.color)
                 .frame(width: iconSize + 12, height: iconSize + 12)
                 .contentShape(Rectangle())
 
             if !isEmpty {
                 Circle()
-                    .fill(Color.red)
+                    .fill(appearance.badgeBackground.color)
                     .frame(width: max(10, iconSize * 0.28), height: max(10, iconSize * 0.28))
                     .overlay(
                         Text(itemCount > 9 ? "9+" : "\(itemCount)")
                             .font(.system(size: max(6, iconSize * 0.13), weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(appearance.badgeText.color)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     )

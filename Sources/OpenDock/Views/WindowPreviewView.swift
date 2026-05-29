@@ -9,6 +9,7 @@ struct WindowPreviewView: View {
     @ObservedObject private var windowService: WindowService
     private var onDismiss: () -> Void
     private var onHoverChanged: (Bool) -> Void
+    @Environment(\.sidebarAppearance) private var appearance
 
     init(
         app: RunningAppInfo,
@@ -62,6 +63,8 @@ struct WindowPreviewView: View {
                 .padding(12)
             }
         }
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
         .onAppear {
             windowService.refresh()
         }
@@ -140,6 +143,7 @@ private struct WindowPreviewGrid: View {
 private struct WindowPreviewTile: View {
     var window: WindowInfo
     @ObservedObject var windowService: WindowService
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         GeometryReader { geometry in
@@ -153,11 +157,11 @@ private struct WindowPreviewTile: View {
 
                     Text("\(Int(window.bounds.width)) x \(Int(window.bounds.height))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(appearance.secondaryText.color)
                 }
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.regularMaterial)
+                .background(appearance.popoverSurface.color)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .clipped()
@@ -165,7 +169,7 @@ private struct WindowPreviewTile: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(.quaternary, lineWidth: 1)
+                .stroke(appearance.popoverBorder.color, lineWidth: 1)
         }
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
@@ -180,12 +184,12 @@ private struct WindowPreviewTile: View {
                 .clipped()
         } else {
             Rectangle()
-                .fill(.quaternary)
+                .fill(appearance.widgetBackground.color)
                 .frame(width: size.width, height: size.height)
                 .overlay {
                     Image(systemName: "macwindow")
                         .font(.system(size: 34))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(appearance.secondaryText.color)
                 }
         }
     }

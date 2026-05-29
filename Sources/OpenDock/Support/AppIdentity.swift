@@ -5,6 +5,8 @@ public enum AppIdentity {
     public static let executableName = "OpenDock"
     public static let appBundleName = "\(displayName).app"
     public static let bundleIdentifier = "app.opendock"
+    public static let githubProfileURL = URL(string: "https://github.com/dechadou")!
+    public static let githubRepositoryURL = URL(string: "https://github.com/dechadou/OpenDock")!
 
     public static let applicationSupportDirectoryName = displayName
 

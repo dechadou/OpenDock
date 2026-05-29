@@ -6,6 +6,7 @@ struct LauncherView: View {
     @ObservedObject private var scanner: ApplicationScanner
     @State private var query = ""
     @FocusState private var isSearchFocused: Bool
+    @Environment(\.sidebarAppearance) private var appearance
 
     init(appModel: AppModel) {
         self.appModel = appModel
@@ -16,7 +17,7 @@ struct LauncherView: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
 
                 TextField("Search applications", text: $query)
                     .textFieldStyle(.plain)
@@ -53,7 +54,7 @@ struct LauncherView: View {
 
                             Text(application.url.deletingLastPathComponent().path)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(appearance.secondaryText.color)
                                 .lineLimit(1)
                         }
 
@@ -85,6 +86,8 @@ struct LauncherView: View {
                 }
             }
         }
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
         .onAppear {
             if scanner.applications.isEmpty {
                 scanner.reload()

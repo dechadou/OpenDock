@@ -21,6 +21,7 @@ public final class AppModel: ObservableObject {
 
     private let panelController = PanelController()
     private let hotKeyService = HotKeyService()
+    private weak var settingsWindow: NSWindow?
     private var cancellables: Set<AnyCancellable> = []
     private var sidebarInteractionSurfaceIDs: Set<String> = []
     private var didStart = false
@@ -162,6 +163,26 @@ public final class AppModel: ObservableObject {
         windowService.refresh()
         isWindowSwitcherPresented = true
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func setSettingsWindow(_ window: NSWindow?) {
+        settingsWindow = window
+        settingsWindow?.collectionBehavior.insert(.fullScreenAuxiliary)
+    }
+
+    func bringSettingsWindowToFront() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        guard let settingsWindow else {
+            return
+        }
+
+        settingsWindow.makeKeyAndOrderFront(nil)
+        settingsWindow.orderFrontRegardless()
+    }
+
+    func revealSidebarForCustomizationPreview() {
+        panelController.revealForCustomizationPreview()
     }
 
     func setSidebarInteractionSurface(_ id: String, visible: Bool) {

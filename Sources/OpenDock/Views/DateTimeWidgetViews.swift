@@ -3,6 +3,7 @@ import SwiftUI
 struct DateTimeSidebarIcon: View {
     var iconSize: CGFloat
     @State private var now = Date()
+    @Environment(\.sidebarAppearance) private var appearance
 
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -18,7 +19,9 @@ struct DateTimeSidebarIcon: View {
                 .lineLimit(1)
         }
         .frame(width: iconSize + 12, height: iconSize + 12)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.widgetBackground.color, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(appearance.widgetBorder.color, lineWidth: 1))
         .onReceive(timer) { value in
             now = value
         }
@@ -27,6 +30,7 @@ struct DateTimeSidebarIcon: View {
 
 struct CalendarPopoverView: View {
     @State private var month = Date()
+    @Environment(\.sidebarAppearance) private var appearance
 
     private var calendar: Calendar {
         .current
@@ -61,7 +65,7 @@ struct CalendarPopoverView: View {
                 ForEach(calendar.shortWeekdaySymbols, id: \.self) { symbol in
                     Text(symbol)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(appearance.secondaryText.color)
                 }
 
                 ForEach(days, id: \.self) { day in
@@ -70,7 +74,7 @@ struct CalendarPopoverView: View {
                             .font(.callout)
                             .monospacedDigit()
                             .frame(width: 28, height: 28)
-                            .background(isToday(day) ? Color.accentColor.opacity(0.22) : Color.clear)
+                            .background(isToday(day) ? appearance.calendarHighlight.color : Color.clear)
                             .clipShape(Circle())
                     } else {
                         Color.clear.frame(width: 28, height: 28)
@@ -79,6 +83,8 @@ struct CalendarPopoverView: View {
             }
         }
         .padding(14)
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
     }
 
     private var days: [Date?] {

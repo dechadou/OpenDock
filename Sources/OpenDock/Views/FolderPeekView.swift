@@ -4,6 +4,7 @@ import SwiftUI
 struct FolderPeekView: View {
     var folderURL: URL
     @ObservedObject var appModel: AppModel
+    @Environment(\.sidebarAppearance) private var appearance
 
     private var entries: [FolderEntry] {
         FolderPeekService.entries(in: folderURL)
@@ -70,5 +71,7 @@ struct FolderPeekView: View {
                 .listStyle(.plain)
             }
         }
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
     }
 }

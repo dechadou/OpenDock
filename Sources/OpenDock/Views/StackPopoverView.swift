@@ -8,6 +8,7 @@ struct StackPopoverView: View {
     var iconSize: CGFloat
 
     @ObservedObject private var sidebarItemStore: SidebarItemStore
+    @Environment(\.sidebarAppearance) private var appearance
 
     init(stack: SidebarItem, appModel: AppModel, iconSize: CGFloat) {
         self.stack = stack
@@ -27,7 +28,7 @@ struct StackPopoverView: View {
 
                 Text("\(currentStack.children.count)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
                     .monospacedDigit()
             }
             .padding(12)
@@ -103,11 +104,13 @@ struct StackPopoverView: View {
 
             Text("Drag running apps, pinned items, files, or folders into this stack.")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(appearance.secondaryText.color)
                 .lineLimit(2)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
         }
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
     }
 
     private var currentStack: SidebarItem {
@@ -122,12 +125,6 @@ struct StackPopoverView: View {
 
         Button("Move Out of Stack") {
             appModel.moveChildOutOfStack(childID: child.id, stackID: currentStack.id)
-        }
-
-        if let url = child.url, url.isFileURL {
-            Button("Reveal in Finder") {
-                AppActionService.revealInFinder(url)
-            }
         }
 
         Divider()

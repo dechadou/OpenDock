@@ -100,12 +100,11 @@ enum AppContextMenuFactory {
     @MainActor
     static func runningAppMenu(
         app: RunningAppInfo,
-        appModel: AppModel,
-        previewWindows: @escaping () -> Void
+        appModel: AppModel
     ) -> NSMenu {
         let menu = NSMenu()
         menu.addItem(
-            ClosureMenuItem(title: "Activate") {
+            ClosureMenuItem(title: AppContextMenuModel.bringToFrontTitle) {
                 appModel.openRunningApp(app)
             })
         menu.addItem(
@@ -115,18 +114,6 @@ enum AppContextMenuFactory {
 
         addStackSubmenu(to: menu, app: app, appModel: appModel)
         addMoveToSubmenu(to: menu, app: app, appModel: appModel)
-
-        menu.addItem(
-            ClosureMenuItem(title: "Preview Windows") {
-                previewWindows()
-            })
-
-        if let bundleURL = app.bundleURL {
-            menu.addItem(
-                ClosureMenuItem(title: "Reveal in Finder") {
-                    AppActionService.revealInFinder(bundleURL)
-                })
-        }
 
         menu.addItem(.separator())
         menu.addItem(
@@ -158,13 +145,6 @@ enum AppContextMenuFactory {
             addMoveToSubmenu(to: menu, app: runningApp, appModel: appModel)
         }
 
-        if let url = item.url, url.isFileURL {
-            menu.addItem(
-                ClosureMenuItem(title: "Reveal in Finder") {
-                    AppActionService.revealInFinder(url)
-                })
-        }
-
         menu.addItem(.separator())
         menu.addItem(
             ClosureMenuItem(title: removeTitle) {
@@ -193,13 +173,6 @@ enum AppContextMenuFactory {
 
         if let runningApp {
             addMoveToSubmenu(to: menu, app: runningApp, appModel: appModel)
-        }
-
-        if let url = child.url, url.isFileURL {
-            menu.addItem(
-                ClosureMenuItem(title: "Reveal in Finder") {
-                    AppActionService.revealInFinder(url)
-                })
         }
 
         menu.addItem(.separator())
@@ -293,6 +266,25 @@ enum AppContextMenuFactory {
 }
 
 public enum AppContextMenuModel {
+    public static let bringToFrontTitle = "Bring to front"
+    public static let previewWindowsTitle = "Preview Windows"
+    public static let revealInFinderTitle = "Reveal in Finder"
+
+    public static func runningAppMenuTitles(hasStacks: Bool, hasMoveTo: Bool) -> [String] {
+        var titles = [bringToFrontTitle, "Pin App"]
+
+        if hasStacks {
+            titles.append("Add to Stack")
+        }
+
+        if hasMoveTo {
+            titles.append("Move To")
+        }
+
+        titles.append(contentsOf: ["Quit", "Force Quit"])
+        return titles
+    }
+
     public static func moveToItemTitles(
         displayNames: [String],
         accessibilityTrusted: Bool

@@ -5,6 +5,7 @@ struct WindowSwitcherView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject private var windowService: WindowService
     @State private var selection: WindowInfo.ID?
+    @Environment(\.sidebarAppearance) private var appearance
 
     init(appModel: AppModel) {
         self.appModel = appModel
@@ -18,6 +19,8 @@ struct WindowSwitcherView: View {
             permissionBanner
             content
         }
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
         .onAppear {
             windowService.refresh()
             selection = windowService.windows.first?.id
@@ -27,7 +30,7 @@ struct WindowSwitcherView: View {
     private var header: some View {
         HStack(spacing: 10) {
             Image(systemName: "rectangle.on.rectangle")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(appearance.secondaryText.color)
 
             Text("Windows")
                 .font(.headline)
@@ -50,7 +53,7 @@ struct WindowSwitcherView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Permissions improve window control and previews.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
 
                 HStack {
                     if !PermissionService.isAccessibilityTrusted {
@@ -90,7 +93,7 @@ struct WindowSwitcherView: View {
                 .buttonStyle(.plain)
                 .tag(window.id)
                 .contextMenu {
-                    Button("Activate") {
+                    Button(AppContextMenuModel.bringToFrontTitle) {
                         windowService.activate(window)
                     }
                     Button("Close Window") {
@@ -121,6 +124,7 @@ struct WindowSwitcherView: View {
 private struct WindowRow: View {
     var window: WindowInfo
     @ObservedObject var windowService: WindowService
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         HStack(spacing: 12) {
@@ -132,11 +136,11 @@ private struct WindowRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             } else {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(.quaternary)
+                    .fill(appearance.widgetBackground.color)
                     .frame(width: 82, height: 52)
                     .overlay(
                         Image(systemName: "macwindow")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(appearance.secondaryText.color)
                     )
             }
 
@@ -147,7 +151,7 @@ private struct WindowRow: View {
 
                 Text(window.ownerName)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
                     .lineLimit(1)
             }
 

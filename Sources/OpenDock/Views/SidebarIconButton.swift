@@ -28,16 +28,17 @@ struct SidebarIconButton: View {
 struct AppBadgeView: View {
     var text: String
     var iconSize: CGFloat
+    @Environment(\.sidebarAppearance) private var appearance
 
     var body: some View {
         Text(text)
             .font(.system(size: max(8, iconSize * 0.25), weight: .bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(appearance.badgeText.color)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             .padding(.horizontal, text.count > 1 ? 5 : 0)
             .frame(minWidth: max(14, iconSize * 0.38), minHeight: max(14, iconSize * 0.38))
-            .background(Capsule().fill(Color.red))
-            .overlay(Capsule().stroke(.background, lineWidth: 1.4))
+            .background(Capsule().fill(appearance.badgeBackground.color))
+            .overlay(Capsule().stroke(appearance.badgeBorder.color, lineWidth: 1.4))
     }
 }

@@ -9,9 +9,11 @@ final class PanelController {
     private var bottomRevealTimers: [String: Timer] = [:]
     private var screenObserver: NSObjectProtocol?
     private var autoHideTimer: Timer?
+    private var customizationPreviewTimer: Timer?
     private weak var appModel: AppModel?
     private var preferences: SidebarPreferences = .defaults
     private var sidebarEnabled = true
+    private var isCustomizationPreviewHeld = false
 
     func start(appModel: AppModel, preferences: SidebarPreferences) {
         self.appModel = appModel
@@ -35,6 +37,8 @@ final class PanelController {
 
         autoHideTimer?.invalidate()
         autoHideTimer = nil
+        customizationPreviewTimer?.invalidate()
+        customizationPreviewTimer = nil
         screenObserver = nil
         appModel = nil
     }
@@ -65,8 +69,34 @@ final class PanelController {
 
     func setSidebarEnabled(_ enabled: Bool) {
         sidebarEnabled = enabled
+        if !enabled {
+            endCustomizationPreviewHold()
+        }
         updateAutoHideVisibility()
         updateAutoHideTimerState()
+    }
+
+    func revealForCustomizationPreview(duration: TimeInterval = 2.5) {
+        guard sidebarEnabled else {
+            return
+        }
+
+        isCustomizationPreviewHeld = true
+        customizationPreviewTimer?.invalidate()
+
+        cancelAllBottomReveals()
+        for (id, panel) in panels {
+            show(panel, panelID: id, animated: preferences.autoHide)
+        }
+
+        let timer = Timer(timeInterval: duration, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.endCustomizationPreviewHold()
+            }
+        }
+
+        customizationPreviewTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func rebuildPanels() {
@@ -188,7 +218,7 @@ final class PanelController {
             return
         }
 
-        if appModel?.shouldHoldSidebarVisibleForInteraction == true {
+        if isCustomizationPreviewHeld || appModel?.shouldHoldSidebarVisibleForInteraction == true {
             cancelAllBottomReveals()
             for (id, panel) in panels {
                 show(panel, panelID: id)
@@ -354,6 +384,13 @@ final class PanelController {
     private func cancelAllBottomReveals() {
         bottomRevealTimers.values.forEach { $0.invalidate() }
         bottomRevealTimers = [:]
+    }
+
+    private func endCustomizationPreviewHold() {
+        customizationPreviewTimer?.invalidate()
+        customizationPreviewTimer = nil
+        isCustomizationPreviewHeld = false
+        updateAutoHideVisibility()
     }
 
     private func normalFrame(for panelID: String?, panel: NSPanel) -> CGRect? {

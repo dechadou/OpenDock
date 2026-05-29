@@ -29,7 +29,11 @@ struct OpenDockApp: App {
 
         Settings {
             SettingsView(appModel: appDelegate.appModel)
-                .frame(width: 420)
+                .frame(width: 940, height: 680)
+        }
+
+        Window("About OpenDock", id: "about") {
+            AboutView()
         }
     }
 }

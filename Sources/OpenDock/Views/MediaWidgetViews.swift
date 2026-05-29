@@ -11,6 +11,7 @@ struct MediaSidebarPill: View {
     @State private var closeTask: DispatchWorkItem?
     @State private var isPillHovered = false
     @State private var isPopoverHovered = false
+    @Environment(\.sidebarAppearance) private var appearance
 
     private let timer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
 
@@ -45,6 +46,7 @@ struct MediaSidebarPill: View {
                 }
             )
             .frame(width: 300, height: 340)
+            .environment(\.sidebarAppearance, appearance)
         }
         .onAppear {
             loadPlaybackInfo()
@@ -88,8 +90,8 @@ struct MediaSidebarPill: View {
         }
         .padding(.horizontal, 10)
         .frame(width: pillWidth, height: iconSize + 12)
-        .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.72)))
-        .overlay(Capsule().stroke(.primary.opacity(0.12), lineWidth: 1))
+        .background(Capsule().fill(appearance.widgetBackground.color))
+        .overlay(Capsule().stroke(appearance.widgetBorder.color, lineWidth: 1))
         .contentShape(Rectangle())
     }
 
@@ -106,8 +108,8 @@ struct MediaSidebarPill: View {
             }
         }
         .frame(width: iconSize + 12, height: iconSize + 12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(nsColor: .controlBackgroundColor).opacity(0.64)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.primary.opacity(0.10), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(appearance.widgetBackground.color))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(appearance.widgetBorder.color, lineWidth: 1))
         .contentShape(Rectangle())
     }
 
@@ -132,13 +134,13 @@ struct MediaSidebarPill: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(playbackInfo?.title ?? "No media")
                     .font(.system(size: max(11, iconSize * 0.24), weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(appearance.primaryText.color)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Text(playbackInfo?.subtitle ?? "Spotify/Music")
                     .font(.system(size: max(10, iconSize * 0.21)))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -156,7 +158,7 @@ struct MediaSidebarPill: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: max(9, side * 0.54), weight: .semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(appearance.primaryText.color)
                 .frame(width: side, height: side)
         }
         .buttonStyle(.plain)
@@ -228,6 +230,7 @@ struct MediaSidebarPill: View {
 struct MediaControlsPopover: View {
     @ObservedObject var appModel: AppModel
     var onHoverChanged: (Bool) -> Void = { _ in }
+    @Environment(\.sidebarAppearance) private var appearance
 
     private let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -244,7 +247,7 @@ struct MediaControlsPopover: View {
             VStack(spacing: 3) {
                 Text(playbackInfo?.subtitle ?? "Spotify/Music not detected")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(appearance.secondaryText.color)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -265,6 +268,8 @@ struct MediaControlsPopover: View {
             loadPlaybackInfo()
         }
         .onHover(perform: onHoverChanged)
+        .foregroundStyle(appearance.primaryText.color)
+        .background(appearance.popoverSurface.color)
     }
 
     private var playbackInfo: MediaPlaybackInfo? {
@@ -299,7 +304,7 @@ struct MediaControlsPopover: View {
 
         return ZStack {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.78))
+                .fill(appearance.widgetBackground.color)
 
             if let artwork = artworkImage {
                 Image(nsImage: artwork)
@@ -316,17 +321,17 @@ struct MediaControlsPopover: View {
         }
         .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.primary.opacity(0.12), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(appearance.widgetBorder.color, lineWidth: 1))
         .overlay(alignment: .bottom) {
             Text(playbackInfo?.title ?? "No media")
                 .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(appearance.inverseText.color)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .frame(maxWidth: side - 20, alignment: .leading)
-                .background(.black.opacity(0.58), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(appearance.mediaOverlayBackground.color, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .padding(10)
         }
     }
@@ -346,10 +351,10 @@ struct MediaControlsPopover: View {
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: side == 42 ? 20 : 16, weight: .semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(appearance.primaryText.color)
                 .frame(width: side, height: side)
-                .background(Circle().fill(Color(nsColor: .controlBackgroundColor).opacity(0.72)))
-                .overlay(Circle().stroke(.primary.opacity(0.10), lineWidth: 1))
+                .background(Circle().fill(appearance.widgetBackground.color))
+                .overlay(Circle().stroke(appearance.widgetBorder.color, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .help(help)
